@@ -1,0 +1,71 @@
+{
+  "name": "B-log",
+  "short_name": "B-log",
+  "version": "0.1.0",
+  "templateVersion": 3,
+  "description": "Boulder logbook: draw your gym, tap a wall to log a send by colour, and track your progress",
+  "author": "Javier Melo",
+  "license": "MIT",
+  "main": "index.html",
+  "files": [
+    "index.html",
+    "css/style.css",
+    "js/app.js",
+    "js/bridge.js",
+    "js/climb.js",
+    "js/dom.js",
+    "js/geometry.js",
+    "js/map.js",
+    "js/progress.js",
+    "js/setup.js",
+    "js/stats.js",
+    "js/store.js",
+    "manifest.json",
+    "AGENTS.md",
+    "PACKAGING.md",
+    "README.md",
+    "LICENSE",
+    "dev_server.py",
+    "icon.png",
+    "data/gym.json",
+    "data/sends.json",
+    "data/settings.json"
+  ],
+  "app2Update": {
+    "appId": "com.wynh.blog",
+    "minimumHostVersionCode": 1,
+    "github": {
+      "owner": "javiercmh",
+      "repository": "b-log",
+      "branch": "main"
+    },
+    "managedFiles": [
+      "index.html",
+      "css/style.css",
+      "js/app.js",
+      "js/bridge.js",
+      "js/climb.js",
+      "js/dom.js",
+      "js/geometry.js",
+      "js/map.js",
+      "js/progress.js",
+      "js/setup.js",
+      "js/stats.js",
+      "js/store.js",
+      "manifest.json",
+      "AGENTS.md",
+      "PACKAGING.md",
+      "README.md",
+      "LICENSE",
+      "icon.png"
+    ],
+    "seedFiles": [
+      "data/gym.json",
+      "data/sends.json",
+      "data/settings.json"
+    ]
+  },
+  "icons": [
+    { "src": "icon.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

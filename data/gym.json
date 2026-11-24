@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "cols": 12,
+  "rows": 16,
+  "walls": [],
+  "grades": [
+    { "id": "g_yellow", "name": "Yellow", "color": "#facc15" },
+    { "id": "g_green", "name": "Green", "color": "#22c55e" },
+    { "id": "g_blue", "name": "Blue", "color": "#3b82f6" },
+    { "id": "g_red", "name": "Red", "color": "#ef4444" },
+    { "id": "g_black", "name": "Black", "color": "#1f2937" }
+  ]
+}

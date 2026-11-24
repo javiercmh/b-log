@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light dark">
+  <title>B-log</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="damaged" class="banner" hidden></div>
+
+  <!-- ===== Climb ===== -->
+  <section id="pane-climb" class="pane active" aria-label="Climb">
+    <header class="topbar">
+      <h1>B-log</h1>
+      <div class="day-switch">
+        <button id="day-prev" class="icon-btn" aria-label="Previous day">‹</button>
+        <label class="day-label">
+          <span id="day-text"></span>
+          <input id="day-input" type="date" aria-label="Choose day">
+        </label>
+        <button id="day-next" class="icon-btn" aria-label="Next day">›</button>
+      </div>
+    </header>
+
+    <div id="climb-empty" class="card empty" hidden>
+      <h2>Draw your gym first</h2>
+      <p class="muted">Add the walls of your gym in Setup. Then tap a wall here to log a boulder.</p>
+      <button id="go-setup" class="btn primary">Open Setup</button>
+    </div>
+
+    <div id="climb-main">
+      <div class="palette" id="palette" role="radiogroup" aria-label="Colour to log"></div>
+      <div class="card map-card"><div id="climb-map" class="map-host"></div></div>
+      <p class="muted center" id="climb-hint">Tap a wall to log a <strong id="hint-grade"></strong> boulder. Tap a pin to edit it.</p>
+
+      <div class="card">
+        <div class="row-between">
+          <h2 id="summary-title">Today</h2>
+          <span class="legend-inline" aria-hidden="true"><i class="sym sym-flash"></i>flash <i class="sym sym-sent"></i>sent <i class="sym sym-tried"></i>tried</span>
+        </div>
+        <div id="summary" class="summary"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== Progress ===== -->
+  <section id="pane-progress" class="pane" aria-label="Progress">
+    <header class="topbar">
+      <h1>Progress</h1>
+      <div class="segmented" role="tablist" aria-label="Period">
+        <button class="seg active" data-period="week">Weeks</button>
+        <button class="seg" data-period="month">Months</button>
+      </div>
+    </header>
+
+    <div class="tiles" id="tiles"></div>
+
+    <div class="card">
+      <div class="row-between">
+        <h2 id="chart-title">Tops per week</h2>
+        <button id="chart-table-toggle" class="link-btn">Table</button>
+      </div>
+      <div id="chart" class="chart"></div>
+      <div id="chart-tip" class="chart-tip" hidden></div>
+      <div id="chart-legend" class="chart-legend"></div>
+      <div id="chart-table" class="chart-table" hidden></div>
+    </div>
+  </section>
+
+  <!-- ===== Setup ===== -->
+  <section id="pane-setup" class="pane" aria-label="Setup">
+    <header class="topbar"><h1>Setup</h1></header>
+
+    <div class="card">
+      <div class="row-between">
+        <h2>Gym map</h2>
+        <span class="chip" id="grid-size-chip"></span>
+      </div>
+      <div class="map-host" id="setup-map"></div>
+
+      <div id="tools-idle" class="row">
+        <button id="wall-add" class="btn primary">+ Wall</button>
+      </div>
+      <div id="tools-draw" class="col" hidden>
+        <p class="muted">Tap grid points to place the corners of the wall.</p>
+        <div class="row">
+          <button id="draw-undo" class="btn ghost">Undo point</button>
+          <button id="draw-cancel" class="btn ghost">Cancel</button>
+          <button id="draw-done" class="btn primary">Done</button>
+        </div>
+      </div>
+      <div id="tools-name" class="col" hidden>
+        <input id="wall-name" class="field" maxlength="40" placeholder="Wall name, e.g. Slab" autocomplete="off">
+        <div class="row">
+          <button id="wall-delete" class="btn danger">Delete</button>
+          <button id="wall-name-cancel" class="btn ghost">Cancel</button>
+          <button id="wall-name-save" class="btn primary">Save</button>
+        </div>
+        <p id="wall-hint" class="muted"></p>
+      </div>
+
+      <details class="grid-size">
+        <summary>Grid size</summary>
+        <div class="stepper-row">
+          <span>Width</span>
+          <div class="stepper" data-dim="cols"><button data-step="-1" aria-label="Narrower">−</button><output></output><button data-step="1" aria-label="Wider">+</button></div>
+        </div>
+        <div class="stepper-row">
+          <span>Height</span>
+          <div class="stepper" data-dim="rows"><button data-step="-1" aria-label="Shorter">−</button><output></output><button data-step="1" aria-label="Taller">+</button></div>
+        </div>
+      </details>
+    </div>
+
+    <div class="card">
+      <h2>Colours <span class="muted">easiest → hardest</span></h2>
+      <ul id="grade-list" class="grade-list"></ul>
+      <button id="grade-add" class="btn ghost">+ Colour</button>
+    </div>
+  </section>
+
+  <!-- ===== Log / edit sheet ===== -->
+  <dialog id="sheet" class="sheet">
+    <form method="dialog" class="sheet-body" id="sheet-form">
+      <div class="row-between">
+        <h2 id="sheet-title"></h2>
+        <button value="cancel" class="icon-btn" aria-label="Close">✕</button>
+      </div>
+      <div id="sheet-colors" class="palette" role="radiogroup" aria-label="Colour" hidden></div>
+      <div class="results" id="sheet-results">
+        <button type="button" class="result" data-result="flash"><i class="sym sym-flash"></i>Flash</button>
+        <button type="button" class="result" data-result="sent"><i class="sym sym-sent"></i>Sent</button>
+        <button type="button" class="result" data-result="tried"><i class="sym sym-tried"></i>Tried</button>
+      </div>
+      <div class="row" id="sheet-edit-actions" hidden>
+        <button type="button" id="sheet-delete" class="btn danger">Delete</button>
+        <button type="button" id="sheet-save" class="btn primary">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast" hidden>
+    <span id="toast-text"></span>
+    <button id="toast-action" class="toast-action" hidden>Undo</button>
+  </div>
+
+  <nav class="tabbar">
+    <button class="tab active" data-pane="climb"><span aria-hidden="true">🧗</span>Climb</button>
+    <button class="tab" data-pane="progress"><span aria-hidden="true">📈</span>Progress</button>
+    <button class="tab" data-pane="setup"><span aria-hidden="true">🛠</span>Setup</button>
+  </nav>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

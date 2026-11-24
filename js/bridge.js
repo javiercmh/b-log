@@ -1,0 +1,530 @@
+// bridge.js — the ONLY file that talks to the Android host.
+// Platform rules and the full API are in AGENTS.md in this workspace.
+//
+// window.AndroidStorage, window.AndroidMemory and window.AndroidNotification are all the same
+// native object. Browser previews use the local development server when present, otherwise localStorage.
+
+const N = window.AndroidStorage || null;
+
+export const isNative = !!N;
+
+// Probe once. Once selected, a failed disk operation must never become a localStorage save.
+function devRequest(action, params = {}, body) {
+  const xhr = new XMLHttpRequest();
+  const query = new URLSearchParams(params);
+  xhr.open(body === undefined ? 'GET' : 'POST', `/__bridge/${action}?${query}`, false);
+  if (body !== undefined) xhr.setRequestHeader('Content-Type', 'text/plain;charset=UTF-8');
+  xhr.send(body);
+  if (xhr.status !== 200) throw new Error(`Development storage ${action} failed (${xhr.status}).`);
+  return xhr.responseText;
+}
+let DEV = null;
+if (!N && !window.AppAI) {
+  try {
+    const info = JSON.parse(devRequest('info'));
+    if (info.server === 'app2-demo-dev') DEV = info;
+  } catch { /* Ordinary browser previews keep their localStorage backend. */ }
+}
+if (DEV?.mockAi) {
+  const indicator = document.createElement('div');
+  indicator.textContent = 'Development mock AI · offline · no ChatGPT usage';
+  indicator.setAttribute('role', 'status');
+  indicator.style.cssText = 'padding:8px;text-align:center;background:#fef3c7;color:#713f12';
+  document.body.prepend(indicator);
+}
+function devWrite(action, params, body = '') {
+  try { return JSON.parse(devRequest(action, params, body)) === true; }
+  catch (error) { console.error(error); return false; }
+}
+
+
+// --- Native AI requests (available only in supported App² WebViews) ---
+const AI = window.AppAI || null;
+let aiCounter = 0;
+const aiPending = new Map();
+const aiResults = new Map();
+if (AI) {
+  window.addEventListener('message', (event) => {
+    let message;
+    try { message = JSON.parse(event.data); } catch { return; }
+    if (message?.event === 'connection') {
+      window.dispatchEvent(new CustomEvent('app2:ai:connection', { detail: message.data }));
+      return;
+    }
+    if (message?.event === 'status') {
+      window.dispatchEvent(new CustomEvent('app2:ai:status', { detail: { id: message.id, ...message.data } }));
+      return;
+    }
+    if (message?.event !== 'complete' && message?.event !== 'error') return;
+    const request = aiResults.get(message.id);
+    if (request) {
+      request.done = true;
+      request.value = message.data;
+      request.error = message.event === 'error' ? message.data : null;
+      request.resolve?.(request);
+      request.notify?.(request);
+    }
+  });
+}
+
+function aiCall(action, extra = {}) {
+  if (!AI && DEV?.mockAi) {
+    return fetch('/__bridge/ai', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action, ...extra }),
+    }).then(async (response) => {
+      const value = await response.json();
+      if (!response.ok) throw Object.assign(new Error(value.error?.message || 'Development mock failed.'), { code: value.error?.code || 'service' });
+      return value;
+    });
+  }
+  if (!AI) return Promise.reject(new Error('AI is unavailable in this browser.'));
+  const id = `ai-${Date.now()}-${++aiCounter}`;
+  return new Promise((resolve, reject) => {
+    aiPending.set(id, { resolve, reject });
+    AI.postMessage(JSON.stringify({ id, action, ...extra }));
+    setTimeout(() => {
+      const pending = aiPending.get(id);
+      if (pending) { aiPending.delete(id); reject(new Error('AI request timed out.')); }
+    }, 30000);
+  }).then((response) => {
+    if (response.type === 'error') {
+      const error = new Error(response.data?.message || String(response.data));
+      error.code = response.data?.code || 'service';
+      throw error;
+    }
+    return response.data;
+  });
+}
+
+if (AI) {
+  AI.onmessage = (event) => {
+    let response;
+    try { response = JSON.parse(event.data); } catch { return; }
+    const pending = aiPending.get(response.id);
+    if (!pending) return;
+    aiPending.delete(response.id);
+    pending.resolve(response);
+  };
+}
+
+// Operation sessions need a newer host. The capability answer is cached only when it is confirmed:
+// {sessions:1}, or the exact "unsupported command" response of hosts without sessions. Anything
+// else (timeouts, service or malformed answers) rejects and is never treated as "unsupported".
+let sessionSupport = null;
+const UNSUPPORTED_COMMAND = 'Unsupported AI command.';
+async function aiSessionSupport() {
+  if (sessionSupport !== null) return sessionSupport;
+  try {
+    const value = await aiCall('capabilities');
+    if (value && value.sessions === 1) return (sessionSupport = true);
+    throw Object.assign(new Error('Unexpected AI capabilities response.'), { code: 'invalid_response' });
+  } catch (error) {
+    if (error?.code === 'invalid_request' && error.message === UNSUPPORTED_COMMAND) return (sessionSupport = false);
+    throw error;
+  }
+}
+
+export const ai = {
+  // Channel presence only; discover connection separately via providers().
+  available: !!AI || !!DEV?.mockAi,
+  developmentMock: !AI && !!DEV?.mockAi,
+  // -> {providers:[{id,name,connected}]}: the host exposes ChatGPT, OpenRouter, a custom endpoint or Combined.
+  // Discover and pass the exposed ID; defaults below remain ChatGPT. No credentials.
+  providers: () => aiCall('providers'),
+  // -> {models:[{id,name,reasoningLevels}]}. IDs are opaque; Combined names include source.
+  models: (providerId = 'chatgpt') => aiCall('models', { providerId }),
+  // -> request ID. Omit reasoningEffort for provider default; use advertised levels.
+  // Optional title/body are short text for the native running-request notification, shown beside
+  // the host-derived app name. They never affect the request.
+  // Optional sessionId (from sessions.begin) lets the request run under an operation session.
+  start: async ({ providerId = 'chatgpt', model, instructions = '', input, reasoningEffort, title, body, sessionId } = {}) => {
+    const data = { providerId, model, instructions, input, reasoningEffort };
+    if (title !== undefined) data.title = title;
+    if (body !== undefined) data.body = body;
+    if (sessionId !== undefined) data.sessionId = sessionId;
+    const id = await aiCall('start', { data });
+    const request = { id, done: false, value: null, error: null, listeners: new Set() };
+    request.notify = (value) => request.listeners.forEach((listener) => listener(value));
+    aiResults.set(id, request);
+    if (!AI && DEV?.mockAi) window.dispatchEvent(new CustomEvent('app2:ai:status', { detail: { id, status: 'running' } }));
+    return id;
+  },
+  // -> {id,done,value,error?}; native failures may reject with Error.code instead.
+  // Poll persisted IDs here after recreation. Never serialize wrapper internals.
+  result: async (id) => {
+    const cached = aiResults.get(id);
+    if (cached?.done) return cached;
+    const value = await aiCall('result', { requestId: id });
+    if (cached && value !== null) Object.assign(cached, { done: true, value });
+    return cached || { id, done: value !== null, value };
+  },
+  // -> completed text. Only supports requests started in this page instance.
+  // Resolves from the host's completion message, which reaches the page even after Android has
+  // frozen its timers in the background (about a minute after it leaves the screen), so the next
+  // step of an operation can start there. Polling remains as a fallback.
+  wait: (id) => new Promise((resolve, reject) => {
+    const request = aiResults.get(id);
+    if (!request) { reject(new Error('Request not found.')); return; }
+    let settled = false;
+    const finish = (error, value) => {
+      if (settled) return;
+      settled = true;
+      request.listeners.delete(onDone);
+      error ? reject(error) : resolve(value);
+    };
+    const onDone = (result) => {
+      if (!result?.done) return;
+      if (result.error) finish(Object.assign(new Error(result.error.message), { code: result.error.code }));
+      else finish(null, result.value);
+    };
+    if (request.done) { onDone(request); return; }
+    request.listeners.add(onDone);
+    const poll = async () => {
+      if (settled) return;
+      try {
+        const result = await ai.result(id);
+        if (result?.done) onDone(result);
+        else setTimeout(poll, 400);
+      } catch (error) { finish(error); }
+    };
+    poll();
+  }),
+  // Operation sessions: a bounded hold on the host's background service for a multi-request
+  // operation. They start no inference and never promise that this page runs while it is suspended.
+  sessions: {
+    // -> boolean. Rejects on any answer that is not a confirmed yes or a confirmed "unsupported".
+    // The host's answer also carries idle: "visible" (the idle window runs only while the app is on
+    // screen) and maxOutputUnits (the longest answer text, in UTF-16 units, this device accepts).
+    supported: aiSessionSupport,
+    // Call from a user action while the page is visible, with the first request's real provider/model.
+    // -> {sessionId}. Errors: permission, background_service, authentication, provider, invalid_request.
+    begin: ({ providerId = 'chatgpt', model, title, body } = {}) => {
+      const data = { providerId, model };
+      if (title !== undefined) data.title = title;
+      if (body !== undefined) data.body = body;
+      return aiCall('beginSession', { data });
+    },
+    // -> true. Idempotent for your own session; not_found for an unknown or foreign id.
+    end: (sessionId) => aiCall('endSession', { data: { sessionId } }),
+  },
+  // Cancels and releases the native request; subsequent result() may be not_found.
+  cancel: async (id) => { const result = await aiCall('cancel', { requestId: id }); aiResults.delete(id); return result; },
+  // Release terminal results only after durable save or handled failure. -> true
+  acknowledge: async (id) => { const result = await aiCall('acknowledge', { requestId: id }); aiResults.delete(id); return result; },
+};
+
+// --- Preferences (Android SharedPreferences) ---
+
+export function savePref(key, value) {
+  const text = typeof value === 'string' ? value : JSON.stringify(value);
+  if (N) return N.saveState(key, text);
+  if (DEV) return devWrite('saveState', { key }, text);
+  localStorage.setItem(key, text);
+  return true;
+}
+
+// Note: the native loadState has no optional-argument support — both args are always required.
+export function loadPref(key, fallback = '') {
+  if (N) return N.loadState(key, fallback);
+  if (DEV) return devRequest('loadState', { key, fallback });
+  const value = localStorage.getItem(key);
+  return value === null ? fallback : value;
+}
+
+export function removePref(key) {
+  if (N) return N.removeState(key);
+  if (DEV) return devWrite('removeState', { key });
+  localStorage.removeItem(key);
+  return true;
+}
+
+// --- Files (workspace directory) ---
+
+export function readFile(name) {
+  if (N) return N.readFile(name);
+  if (DEV) return devRequest('readFile', { name });
+  return localStorage.getItem(`file:${name}`) || '';
+}
+
+export function writeFile(name, content) {
+  const text = typeof content === 'string' ? content : JSON.stringify(content, null, 2);
+  if (N) return N.writeFile(name, text);
+  if (DEV) return devWrite('writeFile', { name }, text);
+  localStorage.setItem(`file:${name}`, text);
+  return true;
+}
+
+// Binary write. Accepts a bare base64 payload or a full `data:...;base64,...` URL.
+export function writeFileBase64(name, base64) {
+  if (N) return N.writeFileBase64(name, base64);
+  if (DEV) return devWrite('writeFileBase64', { name }, base64);
+  localStorage.setItem(`file:${name}`, base64);
+  return true;
+}
+
+export function deleteFile(name) {
+  if (N) return N.deleteFile(name);
+  if (DEV) return devWrite('deleteFile', { name });
+  localStorage.removeItem(`file:${name}`);
+  return true;
+}
+
+export function listFiles() {
+  if (DEV) return JSON.parse(devRequest('listFiles'));
+  if (N) {
+    try {
+      return JSON.parse(N.listFiles());
+    } catch (err) {
+      console.error('[bridge] Could not parse listFiles():', err);
+      return [];
+    }
+  }
+  return Object.keys(localStorage)
+    .filter((k) => k.startsWith('file:'))
+    .map((k) => ({ name: k.slice(5), size: (localStorage.getItem(k) || '').length, lastModified: Date.now() }));
+}
+
+export function storageStats() {
+  if (DEV) return JSON.parse(devRequest('storageStats'));
+  if (N) {
+    try {
+      return JSON.parse(N.getStorageStats());
+    } catch (err) {
+      console.error('[bridge] Could not parse getStorageStats():', err);
+    }
+  }
+  return { usableSpaceBytes: 0, totalSpaceBytes: 0, appFilesCount: 0, appFilesBytes: 0 };
+}
+
+// --- Notifications ---
+
+export function hasNotificationPermission() {
+  if (N) return N.hasNotificationPermission();
+  return 'Notification' in window && Notification.permission === 'granted';
+}
+
+// Fire-and-forget: the Android dialog is async, so this returns before the user answers.
+// Listen for the `app2:notifperm` event on window for the real outcome.
+export function requestNotificationPermission() {
+  if (N) return N.requestNotificationPermission();
+  if ('Notification' in window) {
+    Notification.requestPermission().then((result) => {
+      window.dispatchEvent(new CustomEvent('app2:notifperm', { detail: { granted: result === 'granted' } }));
+    });
+  }
+  return false;
+}
+
+export const canScheduleWhileClosed = !!(N && typeof N.scheduleNotification === 'function');
+
+export function canScheduleExactly() {
+  return !!(N && typeof N.canScheduleExactNotifications === 'function' && N.canScheduleExactNotifications());
+}
+
+export function requestExactNotificationPermission() {
+  return !!(N && typeof N.requestExactNotificationPermission === 'function' && N.requestExactNotificationPermission());
+}
+
+export function scheduleNotification(id, atMillis, title, message) {
+  if (!canScheduleWhileClosed) return false;
+  return N.scheduleNotification(id, String(Math.round(atMillis)), title, message);
+}
+
+export function cancelScheduledNotification(id) {
+  if (!canScheduleWhileClosed) return false;
+  return N.cancelScheduledNotification(id);
+}
+
+export function notify(title, message) {
+  if (N) return N.showNotification(title, message);
+  if ('Notification' in window && Notification.permission === 'granted') {
+    new Notification(title, { body: message });
+    return true;
+  }
+  console.log(`[notify] ${title}: ${message}`);
+  return false;
+}
+
+// Native review only: installing an update always requires a host confirmation.
+const UPDATES = window.AppUpdates || null;
+const updateRequests = new Map();
+if (UPDATES) UPDATES.onmessage = event => {
+  let result;
+  try { result = JSON.parse(event.data); } catch { return; }
+  const pending = updateRequests.get(result.id);
+  if (!pending) return;
+  clearTimeout(pending.timer);
+  updateRequests.delete(result.id);
+  pending.resolve(Boolean(result.opened));
+};
+export const updates = {
+  available: Boolean(UPDATES),
+  open() {
+    if (!UPDATES) return Promise.reject(new Error('App updates require a supported App² host.'));
+    const id = `update-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => { updateRequests.delete(id); reject(new Error('Update review did not open.')); }, 10000);
+      updateRequests.set(id, { resolve, timer });
+      try { UPDATES.postMessage(JSON.stringify({ id, action: 'open' })); }
+      catch (error) { clearTimeout(timer); updateRequests.delete(id); reject(error); }
+    });
+  }
+};
+
+// Native speech; the language always comes from the subapp.
+const SPEECH = window.AppSpeech || null;
+const speechRequests = new Map();
+if (SPEECH) SPEECH.onmessage = event => {
+  let message;
+  try { message = JSON.parse(event.data); } catch { return; }
+  const pending = speechRequests.get(message.id);
+  if (!pending) return;
+  speechRequests.delete(message.id);
+  clearTimeout(pending.timer);
+  if (message.error) {
+    const error = new Error(message.error.message);
+    error.code = message.error.code;
+    pending.reject(error);
+  } else pending.resolve(message.value);
+};
+function speechCommand(action, options) {
+  if (!SPEECH) return Promise.reject(Object.assign(new Error('Speech requires a supported App² host.'), {code: 'unavailable'}));
+  const id = `speech-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  return new Promise((resolve, reject) => {
+    // Playback finishes through the native utterance callback, not a command timeout.
+    const timer = action === 'speak' ? null : setTimeout(() => {
+      speechRequests.delete(id);
+      reject(Object.assign(new Error('Speech command timed out.'), {code: 'timeout'}));
+    }, 15000);
+    speechRequests.set(id, {resolve, reject, timer});
+    try { SPEECH.postMessage(JSON.stringify({id, action, options})); }
+    catch (error) { clearTimeout(timer); speechRequests.delete(id); reject(error); }
+  });
+}
+export const speech = {
+  available: Boolean(SPEECH),
+  voices: () => speechCommand('voices'),
+  capabilities: () => speechCommand('capabilities'),
+  speak: options => speechCommand('speak', options),
+  stop: () => speechCommand('stop')
+};
+
+// Opens the device translation handler; no translated result is returned.
+const TRANSLATION = window.AppTranslation || null;
+const translationRequests = new Map();
+if (TRANSLATION) TRANSLATION.onmessage = event => {
+  let message;
+  try { message = JSON.parse(event.data); } catch { return; }
+  const pending = translationRequests.get(message.id);
+  if (!pending) return;
+  translationRequests.delete(message.id);
+  clearTimeout(pending.timer);
+  if (message.error) {
+    const error = new Error(message.error.message);
+    error.code = message.error.code;
+    pending.reject(error);
+  } else pending.resolve(message.value);
+};
+function translationCommand(action, options) {
+  if (!TRANSLATION) return Promise.reject(Object.assign(new Error('Translation requires a supported App² host.'), {code: 'unavailable'}));
+  const id = `translation-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      translationRequests.delete(id);
+      reject(Object.assign(new Error('Translation command timed out.'), {code: 'timeout'}));
+    }, 15000);
+    translationRequests.set(id, {resolve, reject, timer});
+    try { TRANSLATION.postMessage(JSON.stringify({id, action, options})); }
+    catch (error) { clearTimeout(timer); translationRequests.delete(id); reject(error); }
+  });
+}
+export const translation = {
+  availability: () => TRANSLATION ? translationCommand('availability') : Promise.resolve({available: false}),
+  open: options => translationCommand('open', options)
+};
+
+// Resolution means Android launched the Sharesheet, not that sharing completed.
+const SHARE = window.AppShare || null;
+const shareRequests = new Map();
+if (SHARE) SHARE.onmessage = event => {
+  let message;
+  try { message = JSON.parse(event.data); } catch { return; }
+  const pending = shareRequests.get(message.id);
+  if (!pending) return;
+  shareRequests.delete(message.id);
+  clearTimeout(pending.timer);
+  if (message.error) {
+    const error = new Error(message.error.message);
+    error.code = message.error.code;
+    pending.reject(error);
+  } else pending.resolve(message.value);
+};
+function shareCommand(action, options) {
+  if (!SHARE) return Promise.reject(Object.assign(new Error('Share requires a supported App² host.'), {code: 'unavailable'}));
+  const id = `share-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      shareRequests.delete(id);
+      reject(Object.assign(new Error('Share command timed out.'), {code: 'timeout'}));
+    }, 15000);
+    shareRequests.set(id, {resolve, reject, timer});
+    try { SHARE.postMessage(JSON.stringify({id, action, options})); }
+    catch (error) { clearTimeout(timer); shareRequests.delete(id); reject(error); }
+  });
+}
+export const share = {
+  available: Boolean(SHARE),
+  availability: () => SHARE ? shareCommand('availability') : Promise.resolve({available: false, file: false}),
+  text: options => shareCommand('text', options),
+  file: options => shareCommand('file', options)
+};
+
+// Request/reply helper for the AppSave channel. There is deliberately no wrapper timeout: the host
+// answers every well-formed request, a save waits on the user, and a timer here could report a
+// failure for an operation that then succeeds.
+function hostChannel(name, label) {
+  const channel = window[name] || null;
+  const pending = new Map();
+  if (channel) channel.onmessage = event => {
+    let message;
+    try { message = JSON.parse(event.data); } catch { return; }
+    const request = pending.get(message && message.id);
+    if (!request) return;
+    pending.delete(message.id);
+    if (message.error) request.reject(Object.assign(new Error(message.error.message), {code: message.error.code}));
+    else request.resolve(message.value);
+  };
+  return {
+    available: Boolean(channel),
+    command(action, options) {
+      if (!channel) return Promise.reject(Object.assign(new Error(`${label} requires a supported App² host.`), {code: 'unavailable'}));
+      const id = `${name}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      return new Promise((resolve, reject) => {
+        pending.set(id, {resolve, reject});
+        try { channel.postMessage(JSON.stringify({id, action, options})); }
+        catch (error) { pending.delete(id); reject(error); }
+      });
+    }
+  };
+}
+
+// Save as: resolves {saved: true, name} only after the destination was written, or
+// {saved: false, cancelled: true}. After a page reload the outcome of an earlier call is unknown.
+const saveChannel = hostChannel('AppSave', 'Save');
+export const save = {
+  available: saveChannel.available,
+  availability: () => saveChannel.available ? saveChannel.command('availability') : Promise.resolve({available: false, file: false}),
+  text: options => saveChannel.command('text', options),
+  file: options => saveChannel.command('file', options)
+};
+
+// Hides Android's floating text-selection menu for this page load. Selection handles and
+// selection events keep working, so the app must provide its own actions (Copy included).
+export const selectionMenu = {
+  available: Boolean(N && typeof N.setSelectionMenuSuppressed === 'function'),
+  setSuppressed(suppressed) {
+    try { return selectionMenu.available && N.setSelectionMenuSuppressed(Boolean(suppressed)) === true; }
+    catch { return false; }
+  }
+};
