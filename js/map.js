@@ -16,25 +16,19 @@ function el(name, attrs = {}, parent = null) {
 
 /**
  * Creates a map inside `host`. `onTap([x, y])` receives grid coordinates (unsnapped).
- * Taps are pointer-up events that moved less than a few pixels, so scrolling never logs a send.
  */
 export function createMap(host, onTap) {
   const svg = el('svg', { class: 'map-svg', role: 'img' });
   host.replaceChildren(svg);
-  let start = null;
-
-  svg.addEventListener('pointerdown', (e) => { start = { x: e.clientX, y: e.clientY }; });
-  svg.addEventListener('pointerup', (e) => {
-    if (!start) return;
-    const moved = Math.hypot(e.clientX - start.x, e.clientY - start.y);
-    start = null;
-    if (moved > 10) return;
+  // Use `click`, not pointerup: the browser only fires it for a real tap (not a scroll), and
+  // opening the sheet on pointerup lets the trailing click land on the new dialog's backdrop
+  // and close it again.
+  svg.addEventListener('click', (e) => {
     const ctm = svg.getScreenCTM();
     if (!ctm) return;
     const pt = new DOMPoint(e.clientX, e.clientY).matrixTransform(ctm.inverse());
     onTap([pt.x, pt.y]);
   });
-  svg.addEventListener('pointercancel', () => { start = null; });
 
   return {
     svg,
