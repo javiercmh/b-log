@@ -1,13 +1,15 @@
 # B-log
 
 A boulder logbook for [App²](https://github.com/javiercmh/appapp). Draw your gym, define its colour
-grades, and tap the wall where you just climbed to log it as a flash, a send or a try.
+grades, and tap the wall where you just climbed to log it as a flash, a send or a try, with the
+colour of its holds so you know which route it was.
 
 - **Climb**: pick a colour once, then tap a wall for each boulder. The map shows today's climbs;
   switch days to review or edit older ones. A summary counts flashes, sends and tries per colour.
 - **Progress**: tops per week or month as a stacked chart by colour, sessions, flashes and your
   hardest colour.
-- **Setup**: draw walls on a grid, name them, and set your gym's colours from easiest to hardest.
+- **Setup**: draw walls on a grid, name them, set your gym's difficulty colours from easiest to
+  hardest, and edit the list of hold colours.
 
 Everything stays on the phone in plain JSON files (`data/`), included in App² exports and backups.
 No internet permission needed.

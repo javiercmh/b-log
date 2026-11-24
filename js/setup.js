@@ -37,14 +37,15 @@ export function init() {
     });
   }
 
-  $('grade-add').onclick = () => {
-    let g = null;
-    if (!attempt(() => { g = store.addGrade('New colour', '#a855f7'); })) return;
-    renderGrades();
-   
-    const input = document.querySelector(`[data-grade-name="${g.id}"]`);
-    if (input) { input.focus(); input.select(); }
-  };
+  for (const kind of Object.keys(LISTS)) {
+    $(LISTS[kind].add).onclick = () => {
+      let c = null;
+      if (!attempt(() => { c = store.addColour(kind, 'New colour', '#a855f7'); })) return;
+      renderColours(kind);
+      const input = document.querySelector(`[data-colour-name="${c.id}"]`);
+      if (input) { input.focus(); input.select(); }
+    };
+  }
 }
 
 function reset() {
@@ -144,45 +145,52 @@ export function render() {
     label: 'Gym map editor'
   });
 
-  renderGrades();
+  renderColours('grades');
+  renderColours('holds');
 }
 
-function renderGrades() {
-  const grades = store.gym.grades;
-  $('grade-list').replaceChildren(...grades.map((g, i) => {
-    const used = store.gradeSendCount(g.id);
+const LISTS = {
+  grades: { list: 'grade-list', add: 'grade-add', up: 'easier', down: 'harder' },
+  holds: { list: 'hold-list', add: 'hold-add', up: 'up', down: 'down' }
+};
+
+/** Editable colour list, shared by grades (difficulty order) and hold colours. */
+function renderColours(kind) {
+  const items = store.gym[kind];
+  const { list, up, down } = LISTS[kind];
+  const rerender = () => renderColours(kind);
+  $(list).replaceChildren(...items.map((c, i) => {
+    const used = store.colourSendCount(kind, c.id);
     return h('li', { class: 'grade-item' },
       h('input', {
         type: 'color',
-        value: g.color,
-        'aria-label': `${g.name} colour`,
-        onchange: (e) => attempt(() => store.updateGrade(g.id, { color: e.target.value }))
+        value: c.color,
+        'aria-label': `${c.name} colour`,
+        onchange: (e) => attempt(() => store.updateColour(kind, c.id, { color: e.target.value }))
       }),
       h('input', {
         class: 'field',
-        value: g.name,
+        value: c.name,
         maxlength: '24',
-        'data-grade-name': g.id,
+        'data-colour-name': c.id,
         'aria-label': 'Colour name',
         onchange: (e) => {
           const name = e.target.value.trim();
-          if (!name) { e.target.value = g.name; return; }
-          attempt(() => store.updateGrade(g.id, { name }));
+          if (!name) { e.target.value = c.name; return; }
+          attempt(() => store.updateColour(kind, c.id, { name }));
         }
       }),
-      h('button', { class: 'icon-btn', 'aria-label': `Move ${g.name} easier`, disabled: i === 0, text: '↑', onclick: () => move(g.id, -1) }),
-      h('button', { class: 'icon-btn', 'aria-label': `Move ${g.name} harder`, disabled: i === grades.length - 1, text: '↓', onclick: () => move(g.id, 1) }),
+      h('button', { class: 'icon-btn', 'aria-label': `Move ${c.name} ${up}`, disabled: i === 0, text: '↑',
+        onclick: () => { if (attempt(() => store.moveColour(kind, c.id, -1))) rerender(); } }),
+      h('button', { class: 'icon-btn', 'aria-label': `Move ${c.name} ${down}`, disabled: i === items.length - 1, text: '↓',
+        onclick: () => { if (attempt(() => store.moveColour(kind, c.id, 1))) rerender(); } }),
       h('button', {
         class: 'icon-btn',
-        'aria-label': `Delete ${g.name}`,
+        'aria-label': `Delete ${c.name}`,
         title: used ? 'Used by logged boulders' : 'Delete',
         disabled: used > 0,
         text: '✕',
-        onclick: () => { if (attempt(() => store.removeGrade(g.id))) renderGrades(); }
+        onclick: () => { if (attempt(() => store.removeColour(kind, c.id))) rerender(); }
       }));
   }));
-}
-
-function move(id, delta) {
-  if (attempt(() => store.moveGrade(id, delta))) renderGrades();
 }

@@ -52,8 +52,8 @@ test('walls and colours in use cannot be deleted', () => {
   const w = store.addWall('Slab', [[0, 0], [4, 0]]);
   store.addSend({ date: '2026-11-24', gradeId: 'g_blue', wallId: w.id, x: 1, y: 0, result: 'sent' });
   assert.throws(() => store.removeWall(w.id));
-  assert.throws(() => store.removeGrade('g_blue'));
-  store.removeGrade('g_black');
+  assert.throws(() => store.removeColour('grades', 'g_blue'));
+  store.removeColour('grades', 'g_black');
   assert.equal(store.grade('g_black'), null);
 });
 
@@ -67,9 +67,36 @@ test('remove and restore keep the send position in the list', () => {
 });
 
 test('grades reorder and the selected colour persists', () => {
-  store.moveGrade('g_red', -1);
+  store.moveColour('grades', 'g_red', -1);
   assert.deepEqual(store.gym.grades.map((g) => g.id).slice(2, 4), ['g_red', 'g_blue']);
   store.selectGrade('g_red');
   store.load();
   assert.equal(store.selectedGrade().id, 'g_red');
+});
+
+test('hold colour is optional, saved with the send, and guarded against deletion', () => {
+  assert.equal(store.gym.holds.length, 12);
+  const w = store.addWall('Slab', [[0, 0], [4, 0]]);
+  const a = store.addSend({ date: '2026-11-24', gradeId: 'g_red', holdId: 'h_blue', wallId: w.id, x: 1, y: 0, result: 'sent' });
+  const b = store.addSend({ date: '2026-11-24', gradeId: 'g_red', wallId: w.id, x: 2, y: 0, result: 'tried' });
+  store.load();
+  assert.equal(store.sends.find((s) => s.id === a.id).holdId, 'h_blue');
+  assert.equal(store.sends.find((s) => s.id === b.id).holdId, null);
+  assert.throws(() => store.removeColour('holds', 'h_blue'));
+  store.removeColour('holds', 'h_brown');
+  assert.equal(store.hold('h_brown'), null);
+  const c = store.addColour('holds', 'Neon', '#a3e635');
+  store.updateColour('holds', c.id, { name: 'Lime' });
+  assert.equal(store.hold(c.id).name, 'Lime');
+});
+
+test('a gym file from before hold colours gets the default holds', () => {
+  const old = { version: 1, cols: 8, rows: 8, walls: [], grades: [{ id: 'g_x', name: 'X', color: '#123456' }] };
+  files.set(store.FILES.gym, JSON.stringify(old));
+  files.set(store.FILES.sends, JSON.stringify([{ id: 's_1', date: '2026-11-20', gradeId: 'g_x', wallId: 'w', x: 0, y: 0, result: 'sent' }]));
+  store.load();
+  assert.equal(store.corrupt.size, 0);
+  assert.equal(store.gym.cols, 8);
+  assert.equal(store.gym.holds.length, 12);
+  assert.equal(store.sends.length, 1);
 });

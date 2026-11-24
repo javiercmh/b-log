@@ -152,19 +152,19 @@ circle.wall.selected { fill: var(--accent); }
 }
 .map-draft polyline { fill: none; stroke: var(--accent); stroke-width: 0.2; stroke-dasharray: 0.4 0.25; stroke-linecap: round; }
 .map-draft circle { fill: var(--accent); }
-.pin-dot { stroke-width: 0.08; }
-.pin-tried .pin-dot, .pin-preview .pin-dot { stroke-width: 0.15; }
+.pin-dot { stroke-width: 0.15; }
+.pin-tried .pin-dot { stroke-dasharray: 0.22 0.14; }
 .pin-halo { fill: none; stroke-width: 0.1; }
 .pin-preview { animation: pulse 1s ease-in-out infinite; }
 @keyframes pulse { 50% { opacity: 0.35; } }
 
 /* Result symbols (shape, not colour, tells flash/sent/tried apart). */
 .sym { display: inline-block; width: 12px; height: 12px; border-radius: 50%; vertical-align: -1px; margin-right: 4px; background: var(--text); }
-.sym-tried { background: transparent; border: 2px solid var(--text); }
+.sym-tried { background: transparent; border: 2px dashed var(--text); }
 .sym-flash { box-shadow: 0 0 0 2px var(--surface-solid), 0 0 0 3.5px var(--text); }
 .legend-inline { font-size: 0.75rem; color: var(--muted); display: inline-flex; gap: 8px; align-items: center; }
 .legend-inline .sym { width: 9px; height: 9px; background: var(--muted); margin-right: 2px; }
-.legend-inline .sym-tried { background: transparent; border-color: var(--muted); }
+.legend-inline .sym-tried { background: transparent; border: 1.5px dashed var(--muted); }
 .legend-inline .sym-flash { box-shadow: 0 0 0 1.5px var(--surface-solid), 0 0 0 2.5px var(--muted); }
 
 /* --- Summary --- */
@@ -187,6 +187,9 @@ circle.wall.selected { fill: var(--accent); }
 .sheet::backdrop { background: rgba(0, 0, 0, 0.4); }
 .sheet-body { display: flex; flex-direction: column; gap: 14px; }
 .sheet h2 { font-size: 1.1rem; }
+.col.tight { gap: 4px; }
+.sheet-label { font-size: 0.8rem; font-weight: 650; color: var(--muted); }
+.sheet-label .muted { font-weight: 500; font-size: 0.75rem; margin-left: 4px; }
 .results { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .result {
   min-height: 64px; border-radius: 14px; border: 1.5px solid var(--border); background: var(--surface-2);
@@ -263,3 +266,6 @@ circle.wall.selected { fill: var(--accent); }
 }
 .tab span { font-size: 1.25rem; }
 .tab.active { color: var(--accent); }
+
+/* All hold colours visible at once in the sheet: wrap instead of scrolling sideways. */
+#sheet-holds { flex-wrap: wrap; overflow: visible; }

@@ -22,8 +22,19 @@ export const DEFAULT_GYM = {
     { id: 'g_blue', name: 'Blue', color: '#3b82f6' },
     { id: 'g_red', name: 'Red', color: '#ef4444' },
     { id: 'g_black', name: 'Black', color: '#1f2937' }
-  ]
+  ],
+  holds: defaultHolds()
 };
+
+/** Common hold colours; the user can edit the list in Setup. */
+function defaultHolds() {
+  return [
+    ['red', 'Red', '#dc2626'], ['orange', 'Orange', '#f97316'], ['yellow', 'Yellow', '#facc15'],
+    ['green', 'Green', '#16a34a'], ['turquoise', 'Turquoise', '#14b8a6'], ['blue', 'Blue', '#2563eb'],
+    ['purple', 'Purple', '#9333ea'], ['pink', 'Pink', '#ec4899'], ['black', 'Black', '#111111'],
+    ['white', 'White', '#f8fafc'], ['grey', 'Grey', '#9ca3af'], ['brown', 'Brown', '#92400e']
+  ].map(([id, name, color]) => ({ id: `h_${id}`, name, color }));
+}
 
 export const DEFAULT_SETTINGS = { version: 1, selectedGradeId: null };
 
@@ -60,14 +71,16 @@ export function validGym(g) {
   const wallsOk = g.walls.every((w) => typeof w.id === 'string' && typeof w.name === 'string'
     && Array.isArray(w.points) && w.points.length >= 1
     && w.points.every((p) => Array.isArray(p) && p.length === 2 && isNum(p[0]) && isNum(p[1])));
-  const gradesOk = g.grades.every((gr) => typeof gr.id === 'string' && typeof gr.name === 'string' && isColor(gr.color));
-  return wallsOk && gradesOk;
+  const colourOk = (c) => typeof c.id === 'string' && typeof c.name === 'string' && isColor(c.color);
+  const holdsOk = g.holds === undefined || (Array.isArray(g.holds) && g.holds.every(colourOk));
+  return wallsOk && g.grades.every(colourOk) && holdsOk;
 }
 
 export function validSend(s) {
   return s && typeof s.id === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s.date)
     && typeof s.gradeId === 'string' && typeof s.wallId === 'string'
-    && isNum(s.x) && isNum(s.y) && RESULTS.includes(s.result);
+    && isNum(s.x) && isNum(s.y) && RESULTS.includes(s.result)
+    && (s.holdId === undefined || s.holdId === null || typeof s.holdId === 'string');
 }
 
 export function load() {
@@ -75,7 +88,7 @@ export function load() {
 
   const g = readJson(FILES.gym);
   if (g.missing) gym = structuredClone(DEFAULT_GYM);
-  else if (g.value && validGym(g.value)) gym = g.value;
+  else if (g.value && validGym(g.value)) gym = { holds: defaultHolds(), ...g.value };
   else corrupt.add(FILES.gym);
 
   const s = readJson(FILES.sends);
@@ -108,6 +121,7 @@ export function uid(prefix) {
 // --- Lookups ---
 
 export function grade(id) { return gym.grades.find((g) => g.id === id) || null; }
+export function hold(id) { return (id && gym.holds.find((h) => h.id === id)) || null; }
 export function wall(id) { return gym.walls.find((w) => w.id === id) || null; }
 export function sendsOn(date) { return sends.filter((s) => s.date === date); }
 
@@ -125,8 +139,8 @@ export function selectGrade(id) {
 
 // --- Sends ---
 
-export function addSend({ date, gradeId, wallId, x, y, result }) {
-  const send = { id: uid('s'), date, gradeId, wallId, x, y, result, createdAt: Date.now() };
+export function addSend({ date, gradeId, holdId = null, wallId, x, y, result }) {
+  const send = { id: uid('s'), date, gradeId, holdId, wallId, x, y, result, createdAt: Date.now() };
   commitSends([...sends, send]);
   return send;
 }
@@ -179,30 +193,36 @@ export function resizeGrid(cols, rows) {
   commitGym({ ...gym, cols, rows });
 }
 
-// --- Grades ---
+// --- Colour lists: 'grades' (ordered easiest → hardest) and 'holds' ---
 
-export function addGrade(name, color) {
-  const g = { id: uid('g'), name, color };
-  commitGym({ ...gym, grades: [...gym.grades, g] });
-  return g;
+const SEND_KEY = { grades: 'gradeId', holds: 'holdId' };
+const ID_PREFIX = { grades: 'g', holds: 'h' };
+
+export function addColour(kind, name, color) {
+  const c = { id: uid(ID_PREFIX[kind]), name, color };
+  commitGym({ ...gym, [kind]: [...gym[kind], c] });
+  return c;
 }
 
-export function updateGrade(id, patch) {
-  commitGym({ ...gym, grades: gym.grades.map((g) => (g.id === id ? { ...g, ...patch } : g)) });
+export function updateColour(kind, id, patch) {
+  commitGym({ ...gym, [kind]: gym[kind].map((c) => (c.id === id ? { ...c, ...patch } : c)) });
 }
 
-export function moveGrade(id, delta) {
-  const list = [...gym.grades];
-  const i = list.findIndex((g) => g.id === id);
+export function moveColour(kind, id, delta) {
+  const list = [...gym[kind]];
+  const i = list.findIndex((c) => c.id === id);
   const j = i + delta;
   if (i === -1 || j < 0 || j >= list.length) return;
   [list[i], list[j]] = [list[j], list[i]];
-  commitGym({ ...gym, grades: list });
+  commitGym({ ...gym, [kind]: list });
 }
 
-export function gradeSendCount(id) { return sends.filter((s) => s.gradeId === id).length; }
+export function colourSendCount(kind, id) {
+  return sends.filter((s) => s[SEND_KEY[kind]] === id).length;
+}
 
-export function removeGrade(id) {
-  if (gradeSendCount(id) > 0) throw new Error('This colour has logged sends, so it cannot be deleted.');
-  commitGym({ ...gym, grades: gym.grades.filter((g) => g.id !== id) });
+/** A colour used by logged boulders cannot be deleted; it can be renamed or recoloured. */
+export function removeColour(kind, id) {
+  if (colourSendCount(kind, id) > 0) throw new Error('This colour is used by logged boulders, so it cannot be deleted.');
+  commitGym({ ...gym, [kind]: gym[kind].filter((c) => c.id !== id) });
 }

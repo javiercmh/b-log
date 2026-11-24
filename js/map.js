@@ -33,8 +33,8 @@ export function createMap(host, onTap) {
   return {
     svg,
     /**
-     * view = { cols, rows, walls, pins: [{x, y, color, result}], selectedWallId,
-     *          draft: [[x,y]...] | null, preview: {x, y, color} | null, label }
+     * view = { cols, rows, walls, pins: [{x, y, ring, fill, result}], selectedWallId,
+     *          draft: [[x,y]...] | null, preview: {x, y, ring, fill} | null, label }
      */
     render(view) {
       const { cols, rows } = view;
@@ -78,19 +78,22 @@ export function createMap(host, onTap) {
   };
 }
 
-/** Shape carries the result so colour is never the only cue: ● sent, ◉ flash, ○ tried. */
+/**
+ * Centre = hold colour (empty when none was recorded), ring = difficulty colour.
+ * Shape carries the result so colour is never the only cue: solid ring = sent,
+ * extra outer halo = flash, dashed ring = tried.
+ */
 function drawPin(parent, pin) {
   const g = el('g', { class: `pin pin-${pin.result}` }, parent);
   if (pin.result === 'flash') {
-    el('circle', { class: 'pin-halo', cx: pin.x, cy: pin.y, r: PIN_R + 0.16, stroke: pin.color }, g);
+    el('circle', { class: 'pin-halo', cx: pin.x, cy: pin.y, r: PIN_R + 0.17, stroke: pin.ring }, g);
   }
-  const hollow = pin.result === 'tried' || pin.result === 'preview';
   el('circle', {
     class: 'pin-dot',
     cx: pin.x,
     cy: pin.y,
     r: PIN_R,
-    fill: hollow ? 'var(--surface-solid)' : pin.color,
-    stroke: hollow ? pin.color : 'var(--surface-solid)'
+    fill: pin.fill || 'var(--surface-solid)',
+    stroke: pin.ring
   }, g);
 }

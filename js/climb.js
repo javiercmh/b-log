@@ -77,8 +77,16 @@ export function render() {
     cols: store.gym.cols,
     rows: store.gym.rows,
     walls: store.gym.walls,
-    pins: daySends.map((s) => ({ x: s.x, y: s.y, result: s.result, color: store.grade(s.gradeId)?.color || '#888888' })),
-    preview: sheet?.mode === 'log' ? { ...sheet.spot, color: sheet.grade.color } : null,
+    pins: daySends.map((s) => ({
+      x: s.x,
+      y: s.y,
+      result: s.result,
+      ring: store.grade(s.gradeId)?.color || '#888888',
+      fill: store.hold(s.holdId)?.color || null
+    })),
+    preview: sheet?.mode === 'log'
+      ? { ...sheet.spot, ring: sheet.grade.color, fill: store.hold(sheet.holdId)?.color || null }
+      : null,
     label: `Gym map with ${daySends.length} logged boulders`
   });
 
@@ -125,28 +133,38 @@ function handleTap(p) {
 }
 
 function openLog(spot, grade) {
-  sheet = { mode: 'log', spot, grade };
+  sheet = { mode: 'log', spot, grade, holdId: null };
   $('sheet-title').textContent = `${grade.name} on ${store.wall(spot.wallId)?.name || 'wall'}`;
-  $('sheet-colors').hidden = true;
+  $('sheet-grade-block').hidden = true;
   $('sheet-edit-actions').hidden = true;
+  renderSheetColours();
   setPressed(null);
   $('sheet').showModal();
   render();
 }
 
 function openEdit(send) {
-  sheet = { mode: 'edit', send, gradeId: send.gradeId, result: send.result };
+  sheet = { mode: 'edit', send, gradeId: send.gradeId, holdId: send.holdId || null, result: send.result };
   $('sheet-title').textContent = `Edit · ${store.wall(send.wallId)?.name || 'wall'}`;
-  $('sheet-colors').hidden = false;
+  $('sheet-grade-block').hidden = false;
   $('sheet-edit-actions').hidden = false;
-  renderEditColors();
+  renderSheetColours();
   setPressed(send.result);
   $('sheet').showModal();
 }
 
-function renderEditColors() {
-  $('sheet-colors').replaceChildren(...store.gym.grades.map((g) =>
-    swatch(g, g.id === sheet.gradeId, () => { sheet.gradeId = g.id; renderEditColors(); })));
+/** Difficulty swatches (edit only) and hold swatches. Tapping the chosen hold again clears it. */
+function renderSheetColours() {
+  if (sheet.mode === 'edit') {
+    $('sheet-colors').replaceChildren(...store.gym.grades.map((g) =>
+      swatch(g, g.id === sheet.gradeId, () => { sheet.gradeId = g.id; renderSheetColours(); })));
+  }
+  $('sheet-holds').replaceChildren(...store.gym.holds.map((c) =>
+    swatch(c, c.id === sheet.holdId, () => {
+      sheet.holdId = sheet.holdId === c.id ? null : c.id;
+      renderSheetColours();
+      if (sheet.mode === 'log') render();
+    })));
 }
 
 function setPressed(result) {
@@ -159,22 +177,22 @@ function chooseResult(result) {
   if (!sheet) return;
   if (sheet.mode === 'edit') { sheet.result = result; setPressed(result); return; }
 
-  const { spot, grade } = sheet;
+  const { spot, grade, holdId } = sheet;
   let send = null;
   const ok = attempt(() => {
-    send = store.addSend({ date: day, gradeId: grade.id, wallId: spot.wallId, x: spot.x, y: spot.y, result });
+    send = store.addSend({ date: day, gradeId: grade.id, holdId, wallId: spot.wallId, x: spot.x, y: spot.y, result });
   });
   $('sheet').close();
   if (!ok) return;
- 
-  toast(`${grade.name} ${RESULT_WORD[result]}`, 'Undo', () => {
+  const holds = store.hold(holdId);
+  toast(`${grade.name} ${RESULT_WORD[result]}${holds ? ` · ${holds.name.toLowerCase()} holds` : ''}`, 'Undo', () => {
     if (attempt(() => store.removeSend(send.id))) render();
   });
 }
 
 function saveEdit() {
-  const { send, gradeId, result } = sheet;
-  attempt(() => store.updateSend(send.id, { gradeId, result }));
+  const { send, gradeId, holdId, result } = sheet;
+  attempt(() => store.updateSend(send.id, { gradeId, holdId, result }));
   $('sheet').close();
 }
 
@@ -183,7 +201,6 @@ function deleteEdit() {
   const ok = attempt(() => { removed = store.removeSend(sheet.send.id); });
   $('sheet').close();
   if (!ok || !removed) return;
- 
   toast('Boulder deleted', 'Undo', () => {
     if (attempt(() => store.restoreSend(removed.send, removed.index))) render();
   });

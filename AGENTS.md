@@ -17,14 +17,18 @@ over weeks and months.
     (`data/settings.json`) and stays selected until changed, so logging a run of reds is one
     tap per boulder plus the outcome.
   - Tapping near a wall (within `SNAP_DIST` grid units) snaps the tap onto the wall and opens a
-    bottom sheet with **Flash / Sent / Tried**; choosing one saves immediately and shows an Undo
-    toast. A tap far from every wall only shows a hint.
+    bottom sheet with the **hold colour** swatches (optional, nothing pre-selected because it
+    changes every route; tapping the chosen one again clears it) and **Flash / Sent / Tried**.
+    Choosing an outcome saves immediately and shows an Undo toast. A tap far from every wall
+    only shows a hint.
   - The map shows **only the selected day's** sends. It opens on today, and a new day starts
     empty. `‹ ›` and the date picker change the day (never into the future); logging and
     editing apply to the day that is shown. Reopening the app on a later day rolls over to the
     new today if the user was on today.
-  - Tapping an existing pin opens the same sheet in edit mode: change colour and outcome, then
-    **Save**, or **Delete** (with Undo).
+  - Tapping an existing pin opens the same sheet in edit mode: change difficulty colour, hold
+    colour and outcome, then **Save**, or **Delete** (with Undo).
+  - Pins: centre = hold colour (empty if none recorded), ring = difficulty colour. Solid ring =
+    sent, extra outer halo = flash, dashed ring = tried.
   - A summary below the map lists, per colour in grade order, the counts of flash / sent / tried
     for the shown day, plus total tops.
 - **Progress**: Weeks (last 12, Monday start) or Months (last 12). Tiles: sessions (days with
@@ -36,8 +40,12 @@ over weeks and months.
     for renaming or deletion. A wall with logged sends cannot be deleted (its pins would lose
     their place); it can be renamed.
   - **Grid size**: width and height in grid units (4–40). It cannot shrink past existing walls.
-  - **Colours**: ordered easiest → hardest, each with a name and a colour. Reorder with ↑ ↓.
-    A colour with logged sends cannot be deleted; it can be renamed or recoloured.
+  - **Difficulty colours**: ordered easiest → hardest, each with a name and a colour. Reorder
+    with ↑ ↓.
+  - **Hold colours**: starts with 12 common hold colours; rename, recolour, reorder, add or
+    remove them. The order is the order of the swatches in the sheet.
+  - A difficulty or hold colour used by logged boulders cannot be deleted; it can be renamed or
+    recoloured.
 
 Terminology: a **top** is a boulder completed (`flash` or `sent`); `tried` is an attempt
 without a top. Tries count towards sessions but not tops.
@@ -58,7 +66,7 @@ Pure logic lives in `geometry.js` and `stats.js` so it can be unit tested in Nod
 | `css/style.css` | Light/dark tokens (`prefers-color-scheme`), `--sa-*` safe-area tokens, map, sheet, chart styles. |
 | `js/app.js` | Entry point: loads the store, shows the damaged-file banner, tab switching, day rollover on `visibilitychange`. |
 | `js/climb.js` | Climb screen: day switcher, palette, tap handling (pin hit test → edit, wall snap → log), sheet, day summary. |
-| `js/setup.js` | Setup screen: wall drawing/naming/deletion, grid size, colour list. |
+| `js/setup.js` | Setup screen: wall drawing/naming/deletion, grid size, one colour-list editor shared by difficulty and hold colours. |
 | `js/progress.js` | Progress screen: tiles, SVG stacked bar chart, legend, details, table. |
 | `js/map.js` | SVG renderer in grid units (`viewBox`), tap → grid coordinates. Receives data; never reads the store. |
 | `js/geometry.js` | Pure: snap to wall/grid, nearest pin, polyline midpoint, wall extent. |
@@ -90,19 +98,21 @@ Every mutation builds the next state, writes it, and publishes it only if the wr
   "cols": 12,
   "rows": 16,
   "walls": [{ "id": "w_…", "name": "Slab", "points": [[1, 1], [7, 1]] }],
-  "grades": [{ "id": "g_red", "name": "Red", "color": "#ef4444" }]
+  "grades": [{ "id": "g_red", "name": "Red", "color": "#ef4444" }],
+  "holds": [{ "id": "h_blue", "name": "Blue", "color": "#2563eb" }]
 }
 ```
-`grades` order is the difficulty order, easiest first. `color` is `#rrggbb`. IDs are stable and
+`grades` order is the difficulty order, easiest first. `holds` are the hold colours; a file
+without `holds` (written before v0.2) loads the default list. `color` is `#rrggbb`. IDs are stable and
 never reused; names can change freely.
 
 ### `data/sends.json`
 ```json
-[{ "id": "s_…", "date": "2026-11-24", "gradeId": "g_red", "wallId": "w_…",
+[{ "id": "s_…", "date": "2026-11-24", "gradeId": "g_red", "holdId": "h_blue", "wallId": "w_…",
    "x": 3, "y": 1, "result": "flash", "createdAt": 1795551444043 }]
 ```
 `date` is the **local** day (`YYYY-MM-DD`; never `toISOString()`, which is UTC). `result` is
-`flash`, `sent` or `tried`.
+`flash`, `sent` or `tried`. `holdId` is optional (`null` or absent when not recorded).
 
 ### `data/settings.json`
 ```json
@@ -124,7 +134,7 @@ real climbing data.
   `data/*.json` are `seedFiles` only (copied when absent, never replaced by an update).
 - Bump `manifest.json` `version` for each release pushed to `main`; App² offers the update from
   GitHub (`javiercmh/b-log`, branch `main`).
-- Chart colours are the gym's own grade colours (identity is the hold colour), so the chart
-  always pairs them with names: legend, tap details and the table view. Results are told apart
-  by shape (◉ flash, ● sent, ○ tried), never by colour alone.
+- Chart colours are the gym's own difficulty colours (identity is fixed by the gym), so the
+  chart always pairs them with names: legend, tap details and the table view. Results are told
+  apart by shape (halo = flash, solid ring = sent, dashed ring = tried), never by colour alone.
 - UI language is English. No `alert()`/`confirm()`; use the toast and inline hints.
