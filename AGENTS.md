@@ -37,9 +37,16 @@ over weeks and months.
 - **Setup**
   - **Gym map**: `+ Wall` → tap grid points to place the wall's corners (snapped to the grid,
     duplicates of the last point ignored) → Done → name it. Tapping an existing wall selects it
-    for renaming or deletion. A wall with logged sends cannot be deleted (its pins would lose
-    their place); it can be renamed.
-  - **Grid size**: width and height in grid units (4–40). It cannot shrink past existing walls.
+    for renaming or deletion. A wall with logged sends is **retired** instead of deleted
+    (`removedOn`): it leaves the current map, but older days still show it with its pins.
+  - **Grid size**: width and height in grid units (4–40). It cannot shrink past current walls.
+  - **Layout file**: Upload / Save file / Share a `b-log-layout.json` with the grid and the
+    current walls only (names and points; no ids, colours or climbs), so climbers at the same gym
+    can swap layouts and a gym rebuild can be loaded in one go. Uploading replaces the walls:
+    walls with logged sends are retired, unused ones dropped, and the new walls get
+    `addedOn` = today. Undo is offered until a boulder is logged on the new walls. A B-log
+    `gym.json` is accepted as an upload too. Share is hidden where `share.available` is false;
+    Save falls back to a browser download in previews.
   - **Difficulty colours**: ordered easiest → hardest, each with a name and a colour. Reorder
     with ↑ ↓.
   - **Hold colours**: starts with 12 common hold colours; rename, recolour, reorder, add or
@@ -50,8 +57,13 @@ over weeks and months.
 Terminology: a **top** is a boulder completed (`flash` or `sent`); `tried` is an attempt
 without a top. Tries count towards sessions but not tops.
 
-Out of scope for v1 (agreed with the owner, may come later): multiple gyms, wall re-set dates,
-attempt counts, notes, per-wall statistics, background image for the map.
+**Wall history**: the Climb map for a day shows the walls that stood on that day
+(`addedOn` ≤ day < `removedOn`, both optional) plus any wall with a boulder logged that day, and
+widens the grid if an older layout reaches past the current one. `addedOn` is only set once the
+gym has retired walls, so a first setup can still log earlier days.
+
+Out of scope for now (agreed with the owner, may come later): multiple gyms, a background image of
+the gym's own plan, attempt counts, notes, per-wall statistics, background image for the map.
 
 ---
 
@@ -97,13 +109,15 @@ Every mutation builds the next state, writes it, and publishes it only if the wr
   "version": 1,
   "cols": 12,
   "rows": 16,
-  "walls": [{ "id": "w_…", "name": "Slab", "points": [[1, 1], [7, 1]] }],
+  "walls": [{ "id": "w_…", "name": "Slab", "points": [[1, 1], [7, 1]],
+               "addedOn": "2026-11-24", "removedOn": "2026-12-01" }],
   "grades": [{ "id": "g_red", "name": "Red", "color": "#ef4444" }],
   "holds": [{ "id": "h_blue", "name": "Blue", "color": "#2563eb" }]
 }
 ```
 `grades` order is the difficulty order, easiest first. `holds` are the hold colours; a file
-without `holds` (written before v0.2) loads the default list. `color` is `#rrggbb`. IDs are stable and
+without `holds` (written before v0.2) loads the default list. Wall `addedOn`/`removedOn` are
+optional local dates (see wall history). `color` is `#rrggbb`. IDs are stable and
 never reused; names can change freely.
 
 ### `data/sends.json`
@@ -113,6 +127,14 @@ never reused; names can change freely.
 ```
 `date` is the **local** day (`YYYY-MM-DD`; never `toISOString()`, which is UTC). `result` is
 `flash`, `sent` or `tried`. `holdId` is optional (`null` or absent when not recorded).
+
+### Layout file (`b-log-layout.json`, not stored in `data/`)
+```json
+{ "format": "b-log-layout", "version": 1, "cols": 12, "rows": 16,
+  "walls": [{ "name": "Slab", "points": [[1, 1], [7, 1]] }] }
+```
+Validated on upload: grid 4–40, 1–200 walls, 1–100 integer points per wall inside the grid,
+files up to 1 MiB.
 
 ### `data/settings.json`
 ```json

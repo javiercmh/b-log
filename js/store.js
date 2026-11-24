@@ -3,7 +3,7 @@
 // and only then publishes it, so a failed write leaves both the file and memory unchanged.
 
 import * as bridge from './bridge.js';
-import { RESULTS } from './stats.js';
+import { RESULTS, localIso } from './stats.js';
 
 export const FILES = {
   gym: 'data/gym.json',
@@ -165,9 +165,30 @@ export function restoreSend(send, index) {
 }
 
 // --- Walls ---
+//
+// A wall can carry two optional local dates. `removedOn` retires it: it leaves the current map,
+// but its logged boulders keep their place and older days still show it. `addedOn` hides a wall
+// on days before it existed; it is only set once the gym has retired walls (a new layout), so a
+// first setup can still be used to log earlier days.
+
+const isRetired = (w) => Boolean(w.removedOn);
+
+/** Walls of the current layout. */
+export function activeWalls() { return gym.walls.filter((w) => !isRetired(w)); }
+
+/** Walls that stood on `date`, plus any wall with a boulder logged that day. */
+export function wallsOn(date) {
+  const used = new Set(sendsOn(date).map((s) => s.wallId));
+  return gym.walls.filter((w) => used.has(w.id)
+    || (!(w.addedOn && w.addedOn > date) && !(w.removedOn && w.removedOn <= date)));
+}
+
+function newWallDates() {
+  return gym.walls.some(isRetired) ? { addedOn: localIso() } : {};
+}
 
 export function addWall(name, points) {
-  const w = { id: uid('w'), name, points };
+  const w = { id: uid('w'), name, points, ...newWallDates() };
   commitGym({ ...gym, walls: [...gym.walls, w] });
   return w;
 }
@@ -178,15 +199,99 @@ export function renameWall(id, name) {
 
 export function wallSendCount(id) { return sends.filter((s) => s.wallId === id).length; }
 
-/** A wall with logged sends cannot be deleted: its pins would lose their place. */
+/**
+ * Removes a wall from the map. A wall with logged boulders is retired instead of deleted, so
+ * its pins keep their place in the history. Returns the previous wall list for Undo.
+ */
 export function removeWall(id) {
-  if (wallSendCount(id) > 0) throw new Error('This wall has logged sends, so it cannot be deleted.');
-  commitGym({ ...gym, walls: gym.walls.filter((w) => w.id !== id) });
+  const previous = gym.walls;
+  const walls = wallSendCount(id) > 0
+    ? gym.walls.map((w) => (w.id === id ? { ...w, removedOn: localIso() } : w))
+    : gym.walls.filter((w) => w.id !== id);
+  commitGym({ ...gym, walls });
+  return previous;
 }
 
 /** Replaces the wall list wholesale; used by Undo after a delete. */
 export function restoreWalls(walls) {
   commitGym({ ...gym, walls });
+}
+
+// --- Layout files: the grid and the current walls, to share with other climbers ---
+
+export const LAYOUT_FORMAT = 'b-log-layout';
+const MAX_LAYOUT_WALLS = 200;
+const MAX_WALL_POINTS = 100;
+
+/** The current layout as a shareable object (no ids, dates, colours or climbs). */
+export function layoutFile() {
+  return {
+    format: LAYOUT_FORMAT,
+    version: 1,
+    cols: gym.cols,
+    rows: gym.rows,
+    walls: activeWalls().map((w) => ({ name: w.name, points: w.points }))
+  };
+}
+
+/**
+ * Parses and validates a layout file. Also accepts a B-log `gym.json` (its current walls).
+ * Throws an Error with a message for the user when the file cannot be used.
+ */
+export function parseLayout(text) {
+  let v;
+  try { v = JSON.parse(text); } catch { throw new Error('This file is not a B-log layout.'); }
+  if (!v || typeof v !== 'object' || (v.format !== undefined && v.format !== LAYOUT_FORMAT)
+    || !Array.isArray(v.walls)) {
+    throw new Error('This file is not a B-log layout.');
+  }
+  const size = (n) => Number.isInteger(n) && n >= MIN_GRID && n <= MAX_GRID;
+  if (!size(v.cols) || !size(v.rows)) {
+    throw new Error(`The layout's grid must be between ${MIN_GRID} and ${MAX_GRID} units.`);
+  }
+  const walls = v.walls.filter((w) => w && !w.removedOn);
+  if (!walls.length) throw new Error('This layout has no walls.');
+  if (walls.length > MAX_LAYOUT_WALLS) throw new Error(`A layout can have at most ${MAX_LAYOUT_WALLS} walls.`);
+  const onGrid = (p) => Array.isArray(p) && p.length === 2 && Number.isInteger(p[0]) && Number.isInteger(p[1])
+    && p[0] >= 0 && p[0] <= v.cols && p[1] >= 0 && p[1] <= v.rows;
+  return {
+    cols: v.cols,
+    rows: v.rows,
+    walls: walls.map((w, i) => {
+      if (!Array.isArray(w.points) || !w.points.length || w.points.length > MAX_WALL_POINTS || !w.points.every(onGrid)) {
+        throw new Error(`Wall ${i + 1} in this layout is broken.`);
+      }
+      const name = typeof w.name === 'string' && w.name.trim() ? w.name.trim().slice(0, 40) : `Wall ${i + 1}`;
+      return { name, points: w.points.map(([x, y]) => [x, y]) };
+    })
+  };
+}
+
+/**
+ * Replaces the current layout with a parsed one. Walls with logged boulders are retired (kept
+ * for the history); unused current walls are dropped. Returns the previous grid and walls for Undo.
+ */
+export function importLayout(layout) {
+  const today = localIso();
+  const previous = { cols: gym.cols, rows: gym.rows, walls: gym.walls };
+  const retiring = activeWalls().filter((w) => wallSendCount(w.id) > 0);
+  const kept = gym.walls
+    .filter((w) => isRetired(w) || retiring.includes(w))
+    .map((w) => (isRetired(w) ? w : { ...w, removedOn: today }));
+  const dates = kept.length ? { addedOn: today } : {};
+  const stamp = uid('w');
+  const added = layout.walls.map((w, i) => ({ id: `${stamp}${i}`, name: w.name, points: w.points, ...dates }));
+  commitGym({ ...gym, cols: layout.cols, rows: layout.rows, walls: [...kept, ...added] });
+  return { previous, added: added.length, retired: retiring.length };
+}
+
+/** Undo of importLayout. Refused once boulders were logged on the uploaded walls. */
+export function restoreLayout(previous) {
+  const ids = new Set(previous.walls.map((w) => w.id));
+  if (sends.some((s) => !ids.has(s.wallId))) {
+    throw new Error('Boulders were already logged on the new walls, so the upload cannot be undone.');
+  }
+  commitGym({ ...gym, cols: previous.cols, rows: previous.rows, walls: previous.walls });
 }
 
 export function resizeGrid(cols, rows) {

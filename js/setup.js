@@ -4,6 +4,7 @@ import * as store from './store.js';
 import { createMap } from './map.js';
 import { snapToGrid, snapToWall, wallExtent } from './geometry.js';
 import { $, h, toast, attempt } from './dom.js';
+import { save, share } from './bridge.js';
 
 let map = null;
 let mode = 'idle';       // 'idle' | 'draw' | 'name' (new wall) | 'edit' (existing wall)
@@ -37,6 +38,16 @@ export function init() {
     });
   }
 
+  $('layout-upload').onclick = () => {
+    const input = $('layout-file');
+    input.value = '';   // choosing the same file again must still fire `change`
+    input.click();
+  };
+  $('layout-file').onchange = uploadLayout;
+  $('layout-save').onclick = saveLayout;
+  $('layout-share').onclick = shareLayout;
+  $('layout-share').hidden = !share.available;
+
   for (const kind of Object.keys(LISTS)) {
     $(LISTS[kind].add).onclick = () => {
       let c = null;
@@ -64,7 +75,7 @@ function handleTap(p) {
     return;
   }
   if (mode === 'name') return;
-  const hit = snapToWall(p, store.gym.walls, 0.8);
+  const hit = snapToWall(p, store.activeWalls(), 0.8);
   if (!hit) { if (mode === 'edit') reset(); return; }
   selectedId = hit.wallId;
   mode = 'edit';
@@ -87,20 +98,81 @@ function saveWall() {
 function deleteWall() {
   const w = store.wall(selectedId);
   if (!w) return;
-  const index = store.gym.walls.indexOf(w);
-  if (!attempt(() => store.removeWall(w.id))) return;
- 
+  const kept = store.wallSendCount(w.id) > 0;
+  let previous = null;
+  if (!attempt(() => { previous = store.removeWall(w.id); })) return;
   reset();
-  toast(`${w.name} deleted`, 'Undo', () => {
-    // Re-insert the same wall (same id) at its old position.
-    const walls = [...store.gym.walls];
-    walls.splice(index, 0, w);
-    if (attempt(() => store.restoreWalls(walls))) render();
+  toast(kept ? `${w.name} removed · its boulders stay in your history` : `${w.name} deleted`, 'Undo', () => {
+    if (attempt(() => store.restoreWalls(previous))) render();
+  });
+}
+
+// --- Layout files ---
+
+const LAYOUT_NAME = 'b-log-layout.json';
+
+function layoutText() {
+  return JSON.stringify(store.layoutFile(), null, 2);
+}
+
+function checkHasWalls() {
+  if (store.activeWalls().length) return true;
+  toast('Draw a wall first.');
+  return false;
+}
+
+async function saveLayout() {
+  if (!checkHasWalls()) return;
+  if (!save.available) {
+    // Browser preview: a normal download.
+    const url = URL.createObjectURL(new Blob([layoutText()], { type: 'application/json' }));
+    h('a', { href: url, download: LAYOUT_NAME }).click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    return;
+  }
+  try {
+    const r = await save.text({ name: LAYOUT_NAME, mimeType: 'application/json', content: layoutText() });
+    if (r && r.saved) toast(`Saved ${r.name || LAYOUT_NAME}`);
+  } catch (err) {
+    console.error(err);
+    toast(err.code === 'busy' || err.code === 'not_foreground' ? 'App² is busy. Try again in a moment.' : 'Could not save the file.');
+  }
+}
+
+async function shareLayout() {
+  if (!checkHasWalls()) return;
+  try {
+    await share.file({ name: LAYOUT_NAME, mimeType: 'application/json', content: layoutText() });
+  } catch (err) {
+    console.error(err);
+    toast(err.code === 'busy' || err.code === 'not_foreground' ? 'App² is busy. Try again in a moment.' : 'Could not share the file.');
+  }
+}
+
+async function uploadLayout() {
+  const file = $('layout-file').files?.[0];
+  if (!file) return;
+  let layout;
+  try {
+    if (file.size > 1024 * 1024) throw new Error('This file is too large for a layout.');
+    layout = store.parseLayout(await file.text());
+  } catch (err) {
+    toast(err.message);
+    return;
+  }
+  let result = null;
+  if (!attempt(() => { result = store.importLayout(layout); })) return;
+  reset();
+  const kept = result.retired
+    ? ` · ${result.retired} old wall${result.retired === 1 ? '' : 's'} kept for your history`
+    : '';
+  toast(`${result.added} wall${result.added === 1 ? '' : 's'} uploaded${kept}`, 'Undo', () => {
+    if (attempt(() => store.restoreLayout(result.previous))) render();
   });
 }
 
 function resize(dim, step) {
-  const ext = wallExtent(store.gym.walls);
+  const ext = wallExtent(store.activeWalls());
   const min = Math.max(store.MIN_GRID, dim === 'cols' ? ext.cols : ext.rows);
   const next = Math.max(min, Math.min(store.MAX_GRID, store.gym[dim] + step));
   if (next === store.gym[dim]) {
@@ -122,9 +194,9 @@ export function render() {
 
   if (mode === 'edit') {
     const count = store.wallSendCount(selectedId);
-    $('wall-delete').disabled = count > 0;
+    $('wall-delete').textContent = count > 0 ? 'Remove' : 'Delete';
     $('wall-hint').textContent = count > 0
-      ? `${count} logged boulder${count === 1 ? '' : 's'} on this wall, so it can only be renamed.`
+      ? `${count} logged boulder${count === 1 ? '' : 's'} on this wall. Removing it takes it off the map; older days still show it with its boulders.`
       : '';
   } else {
     $('wall-hint').textContent = '';
@@ -138,7 +210,7 @@ export function render() {
   map.render({
     cols: store.gym.cols,
     rows: store.gym.rows,
-    walls: store.gym.walls,
+    walls: store.activeWalls(),
     pins: [],
     selectedWallId: selectedId,
     draft: mode === 'draw' || mode === 'name' ? draft : null,

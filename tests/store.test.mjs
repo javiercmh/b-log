@@ -11,6 +11,7 @@ globalThis.window = {
   }
 };
 const store = await import('../js/store.js');
+const { localIso, addDays } = await import('../js/stats.js');
 
 beforeEach(() => { files.clear(); failWrites = false; store.load(); });
 
@@ -48,10 +49,20 @@ test('a corrupt file is reported and never overwritten', () => {
   assert.equal(files.get(store.FILES.sends), '{not json');
 });
 
-test('walls and colours in use cannot be deleted', () => {
+test('a used wall is retired, an unused one deleted; colours in use cannot be deleted', () => {
   const w = store.addWall('Slab', [[0, 0], [4, 0]]);
-  store.addSend({ date: '2026-11-24', gradeId: 'g_blue', wallId: w.id, x: 1, y: 0, result: 'sent' });
-  assert.throws(() => store.removeWall(w.id));
+  const spare = store.addWall('Spare', [[0, 2], [4, 2]]);
+  const yesterday = addDays(localIso(), -1);
+  store.addSend({ date: yesterday, gradeId: 'g_blue', wallId: w.id, x: 1, y: 0, result: 'sent' });
+  const before = store.removeWall(w.id);
+  store.removeWall(spare.id);
+  assert.equal(store.wall(spare.id), null);
+  assert.equal(store.wall(w.id).removedOn, localIso());
+  assert.deepEqual(store.activeWalls(), []);
+  assert.deepEqual(store.wallsOn(yesterday).map((x) => x.id), [w.id]);
+  assert.deepEqual(store.wallsOn(localIso()), []);
+  store.restoreWalls(before);
+  assert.equal(store.wall(w.id).removedOn, undefined);
   assert.throws(() => store.removeColour('grades', 'g_blue'));
   store.removeColour('grades', 'g_black');
   assert.equal(store.grade('g_black'), null);
@@ -99,4 +110,43 @@ test('a gym file from before hold colours gets the default holds', () => {
   assert.equal(store.gym.cols, 8);
   assert.equal(store.gym.holds.length, 12);
   assert.equal(store.sends.length, 1);
+});
+
+test('a layout file round-trips and rejects broken files', () => {
+  store.addWall('Slab', [[0, 0], [4, 0]]);
+  const text = JSON.stringify(store.layoutFile());
+  const parsed = store.parseLayout(text);
+  assert.deepEqual(parsed, { cols: 12, rows: 16, walls: [{ name: 'Slab', points: [[0, 0], [4, 0]] }] });
+  assert.throws(() => store.parseLayout('nope'), /not a B-log layout/);
+  assert.throws(() => store.parseLayout(JSON.stringify({ cols: 12, rows: 16, walls: [] })), /no walls/);
+  assert.throws(() => store.parseLayout(JSON.stringify({ cols: 99, rows: 16, walls: [] })), /grid/);
+  assert.throws(() => store.parseLayout(JSON.stringify({ cols: 4, rows: 4, walls: [{ name: 'X', points: [[0, 9]] }] })), /broken/);
+  // A whole gym.json works too.
+  assert.equal(store.parseLayout(files.get(store.FILES.gym)).walls.length, 1);
+});
+
+test('uploading a layout keeps used walls in the history and can be undone', () => {
+  const used = store.addWall('Old slab', [[0, 0], [4, 0]]);
+  store.addWall('Unused', [[0, 3], [4, 3]]);
+  const yesterday = addDays(localIso(), -1);
+  store.addSend({ date: yesterday, gradeId: 'g_red', wallId: used.id, x: 1, y: 0, result: 'sent' });
+  const layout = store.parseLayout(JSON.stringify({ cols: 8, rows: 8, walls: [{ name: 'Cave', points: [[1, 1], [1, 5]] }] }));
+  const r = store.importLayout(layout);
+  assert.equal(r.added, 1);
+  assert.equal(r.retired, 1);
+  assert.equal(store.gym.cols, 8);
+  assert.deepEqual(store.activeWalls().map((w) => w.name), ['Cave']);
+  assert.deepEqual(store.wallsOn(yesterday).map((w) => w.name), ['Old slab']);
+  assert.deepEqual(store.wallsOn(localIso()).map((w) => w.name), ['Cave']);
+  store.load();
+  assert.deepEqual(store.wallsOn(yesterday).map((w) => w.name), ['Old slab']);
+  store.restoreLayout(r.previous);
+  assert.deepEqual(store.activeWalls().map((w) => w.name), ['Old slab', 'Unused']);
+  assert.equal(store.gym.cols, 12);
+});
+
+test('undoing an upload is refused once boulders are logged on the new walls', () => {
+  const r = store.importLayout(store.parseLayout(JSON.stringify({ cols: 8, rows: 8, walls: [{ name: 'Cave', points: [[1, 1], [1, 5]] }] })));
+  store.addSend({ date: localIso(), gradeId: 'g_red', wallId: store.activeWalls()[0].id, x: 1, y: 2, result: 'flash' });
+  assert.throws(() => store.restoreLayout(r.previous), /cannot be undone/);
 });

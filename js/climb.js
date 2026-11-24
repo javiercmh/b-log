@@ -2,7 +2,7 @@
 
 import * as store from './store.js';
 import { createMap, PIN_R } from './map.js';
-import { snapToWall, nearestPoint } from './geometry.js';
+import { snapToWall, nearestPoint, wallExtent } from './geometry.js';
 import { gradeCounts, localIso, addDays, parseIso } from './stats.js';
 import { $, h, toast, attempt, swatch } from './dom.js';
 
@@ -60,7 +60,8 @@ export function render() {
   $('day-input').max = today;
   $('day-next').disabled = day >= today;
 
-  const hasWalls = store.gym.walls.length > 0;
+  const dayWalls = store.wallsOn(day);
+  const hasWalls = dayWalls.length > 0 || store.activeWalls().length > 0;
   $('climb-empty').hidden = hasWalls;
   $('climb-main').hidden = !hasWalls;
   if (!hasWalls) return;
@@ -73,10 +74,12 @@ export function render() {
   $('hint-grade').textContent = selected ? selected.name.toLowerCase() : '…';
 
   const daySends = store.sendsOn(day);
+  // Walls of an older layout can reach past the current grid.
+  const ext = wallExtent(dayWalls);
   map.render({
-    cols: store.gym.cols,
-    rows: store.gym.rows,
-    walls: store.gym.walls,
+    cols: Math.max(store.gym.cols, ext.cols),
+    rows: Math.max(store.gym.rows, ext.rows),
+    walls: dayWalls,
     pins: daySends.map((s) => ({
       x: s.x,
       y: s.y,
@@ -125,7 +128,7 @@ function handleTap(p) {
   const pin = nearestPoint(p, [...daySends].reverse(), PIN_HIT);
   if (pin) { openEdit(pin); return; }
 
-  const spot = snapToWall(p, store.gym.walls, SNAP_DIST);
+  const spot = snapToWall(p, store.wallsOn(day), SNAP_DIST);
   if (!spot) { toast('Tap closer to a wall.'); return; }
   const grade = store.selectedGrade();
   if (!grade) { toast('Add a colour in Setup first.'); return; }

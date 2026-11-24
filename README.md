@@ -9,7 +9,8 @@ colour of its holds so you know which route it was.
 - **Progress**: tops per week or month as a stacked chart by colour, sessions, flashes and your
   hardest colour.
 - **Setup**: draw walls on a grid, name them, set your gym's difficulty colours from easiest to
-  hardest, and edit the list of hold colours.
+  hardest, and edit the list of hold colours. Upload, save or share the gym layout as a file to
+  swap it with friends; when the gym is rebuilt, the old walls stay in your history.
 
 Everything stays on the phone in plain JSON files (`data/`), included in App² exports and backups.
 No internet permission needed.
