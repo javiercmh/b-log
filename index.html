@@ -25,8 +25,8 @@
     </header>
 
     <div id="climb-empty" class="card empty" hidden>
-      <h2>Draw your gym first</h2>
-      <p class="muted">Add the walls of your gym in Setup. Then tap a wall here to log a boulder.</p>
+      <h2 id="climb-empty-title">Draw your gym first</h2>
+      <p class="muted" id="climb-empty-text">Add the walls of your gym in Setup. Then tap a wall here to log a boulder.</p>
       <button id="go-setup" class="btn primary">Open Setup</button>
     </div>
 
@@ -78,28 +78,31 @@
         <h2>Gym map</h2>
         <span class="chip" id="grid-size-chip"></span>
       </div>
+      <div class="map-tools">
+        <div id="tools-idle" class="row">
+          <button id="wall-add" class="btn primary">+ Wall</button>
+          <button id="outline-draw" class="btn ghost">+ Outline</button>
+        </div>
+        <div id="tools-draw" class="col" hidden>
+          <p class="muted" id="draw-hint">Tap grid points to place the corners of the wall.</p>
+          <div class="row">
+            <button id="draw-undo" class="btn ghost">Undo point</button>
+            <button id="draw-cancel" class="btn ghost">Cancel</button>
+            <button id="draw-done" class="btn primary">Done</button>
+          </div>
+          <button id="outline-remove" class="link-btn" hidden>Remove outline</button>
+        </div>
+        <div id="tools-name" class="col" hidden>
+          <input id="wall-name" class="field" maxlength="40" placeholder="Wall name, e.g. Slab" autocomplete="off">
+          <div class="row">
+            <button id="wall-delete" class="btn danger">Delete</button>
+            <button id="wall-name-cancel" class="btn ghost">Cancel</button>
+            <button id="wall-name-save" class="btn primary">Save</button>
+          </div>
+          <p id="wall-hint" class="muted"></p>
+        </div>
+      </div>
       <div class="map-host" id="setup-map"></div>
-
-      <div id="tools-idle" class="row">
-        <button id="wall-add" class="btn primary">+ Wall</button>
-      </div>
-      <div id="tools-draw" class="col" hidden>
-        <p class="muted">Tap grid points to place the corners of the wall.</p>
-        <div class="row">
-          <button id="draw-undo" class="btn ghost">Undo point</button>
-          <button id="draw-cancel" class="btn ghost">Cancel</button>
-          <button id="draw-done" class="btn primary">Done</button>
-        </div>
-      </div>
-      <div id="tools-name" class="col" hidden>
-        <input id="wall-name" class="field" maxlength="40" placeholder="Wall name, e.g. Slab" autocomplete="off">
-        <div class="row">
-          <button id="wall-delete" class="btn danger">Delete</button>
-          <button id="wall-name-cancel" class="btn ghost">Cancel</button>
-          <button id="wall-name-save" class="btn primary">Save</button>
-        </div>
-        <p id="wall-hint" class="muted"></p>
-      </div>
 
       <details class="grid-size">
         <summary>Grid size</summary>
@@ -116,7 +119,7 @@
 
     <div class="card">
       <h2>Layout file</h2>
-      <p class="muted">Swap the gym's walls with friends. The file holds the grid and the current walls, not colours or climbs. Uploading replaces the walls; walls you logged boulders on stay in your history.</p>
+      <p class="muted">Swap the gym's walls with friends. The file holds the grid, the building outline and the current walls, not colours or climbs. Uploading replaces them; walls you logged boulders on stay in your history.</p>
       <div class="row">
         <button id="layout-upload" class="btn ghost">Upload</button>
         <button id="layout-save" class="btn ghost">Save file</button>

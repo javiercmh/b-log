@@ -9,15 +9,23 @@ import { save, share } from './bridge.js';
 let map = null;
 let mode = 'idle';       // 'idle' | 'draw' | 'name' (new wall) | 'edit' (existing wall)
 let draft = [];
+let drawing = 'wall';    // what 'draw' mode is drawing: 'wall' | 'outline'
 let selectedId = null;
 
 export function init() {
   map = createMap($('setup-map'), handleTap);
 
-  $('wall-add').onclick = () => { mode = 'draw'; draft = []; selectedId = null; render(); };
+  $('wall-add').onclick = () => { mode = 'draw'; drawing = 'wall'; draft = []; selectedId = null; render(); };
+  $('outline-draw').onclick = () => { mode = 'draw'; drawing = 'outline'; draft = []; selectedId = null; render(); };
+  $('outline-remove').onclick = () => saveOutline(null);
   $('draw-undo').onclick = () => { draft.pop(); render(); };
   $('draw-cancel').onclick = reset;
   $('draw-done').onclick = () => {
+    if (drawing === 'outline') {
+      if (draft.length < 3) { toast('Place at least three corners.'); return; }
+      saveOutline(draft);
+      return;
+    }
     if (draft.length < 2) { toast('Place at least two points.'); return; }
     mode = 'name';
     $('wall-name').value = '';
@@ -95,6 +103,15 @@ function saveWall() {
   reset();
 }
 
+function saveOutline(points) {
+  let previous = null;
+  if (!attempt(() => { previous = store.setOutline(points); })) return;
+  reset();
+  toast(points ? 'Outline saved' : 'Outline removed', 'Undo', () => {
+    if (attempt(() => store.setOutline(previous))) render();
+  });
+}
+
 function deleteWall() {
   const w = store.wall(selectedId);
   if (!w) return;
@@ -116,8 +133,8 @@ function layoutText() {
 }
 
 function checkHasWalls() {
-  if (store.activeWalls().length) return true;
-  toast('Draw a wall first.');
+  if (store.activeWalls().length || store.gym.outline) return true;
+  toast('Draw a wall or the outline first.');
   return false;
 }
 
@@ -166,17 +183,18 @@ async function uploadLayout() {
   const kept = result.retired
     ? ` · ${result.retired} old wall${result.retired === 1 ? '' : 's'} kept for your history`
     : '';
-  toast(`${result.added} wall${result.added === 1 ? '' : 's'} uploaded${kept}`, 'Undo', () => {
+  const walls = result.added ? ` · ${result.added} wall${result.added === 1 ? '' : 's'}` : '';
+  toast(`Layout uploaded${walls}${kept}`, 'Undo', () => {
     if (attempt(() => store.restoreLayout(result.previous))) render();
   });
 }
 
 function resize(dim, step) {
-  const ext = wallExtent(store.activeWalls());
+  const ext = wallExtent([...store.activeWalls(), { points: store.gym.outline || [] }]);
   const min = Math.max(store.MIN_GRID, dim === 'cols' ? ext.cols : ext.rows);
   const next = Math.max(min, Math.min(store.MAX_GRID, store.gym[dim] + step));
   if (next === store.gym[dim]) {
-    if (step < 0 && next === min && min > store.MIN_GRID) toast('A wall is in the way. Move or delete it first.');
+    if (step < 0 && next === min && min > store.MIN_GRID) toast('A wall or the outline is in the way.');
     return;
   }
   const cols = dim === 'cols' ? next : store.gym.cols;
@@ -188,7 +206,13 @@ export function render() {
   $('tools-idle').hidden = mode !== 'idle';
   $('tools-draw').hidden = mode !== 'draw';
   $('tools-name').hidden = mode !== 'name' && mode !== 'edit';
-  $('draw-done').disabled = draft.length < 2;
+  const needed = drawing === 'outline' ? 3 : 2;
+  $('draw-done').disabled = draft.length < needed;
+  $('draw-hint').textContent = drawing === 'outline'
+    ? 'Tap the corners of the building in order. Done closes the shape. Boulders cannot be logged on the outline.'
+    : 'Tap grid points to place the corners of the wall.';
+  $('outline-remove').hidden = !(mode === 'draw' && drawing === 'outline' && store.gym.outline);
+  $('outline-draw').textContent = store.gym.outline ? 'Redraw outline' : '+ Outline';
   $('draw-undo').disabled = draft.length === 0;
   $('wall-delete').hidden = mode !== 'edit';
 
@@ -210,10 +234,12 @@ export function render() {
   map.render({
     cols: store.gym.cols,
     rows: store.gym.rows,
+    outline: store.gym.outline,
     walls: store.activeWalls(),
     pins: [],
     selectedWallId: selectedId,
     draft: mode === 'draw' || mode === 'name' ? draft : null,
+    draftClosed: drawing === 'outline',
     label: 'Gym map editor'
   });
 

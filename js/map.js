@@ -33,8 +33,8 @@ export function createMap(host, onTap) {
   return {
     svg,
     /**
-     * view = { cols, rows, walls, pins: [{x, y, ring, fill, result}], selectedWallId,
-     *          draft: [[x,y]...] | null, preview: {x, y, ring, fill} | null, label }
+     * view = { cols, rows, outline: [[x,y]...] | null, walls, pins: [{x, y, ring, fill, result}], selectedWallId,
+     *          draft: [[x,y]...] | null, draftClosed, preview: {x, y, ring, fill} | null, label }
      */
     render(view) {
       const { cols, rows } = view;
@@ -43,6 +43,10 @@ export function createMap(host, onTap) {
       svg.replaceChildren();
 
       el('rect', { class: 'map-floor', x: 0, y: 0, width: cols, height: rows, rx: 0.3 }, svg);
+
+      if (view.outline && view.outline.length >= 3) {
+        el('polygon', { class: 'map-outline', points: view.outline.map((p) => p.join(',')).join(' ') }, svg);
+      }
 
       const dots = el('g', { class: 'map-grid' }, svg);
       for (let x = 0; x <= cols; x++) {
@@ -67,7 +71,8 @@ export function createMap(host, onTap) {
 
       if (view.draft && view.draft.length) {
         const d = el('g', { class: 'map-draft' }, svg);
-        if (view.draft.length > 1) el('polyline', { points: view.draft.map((p) => p.join(',')).join(' ') }, d);
+        const pts = view.draft.map((p) => p.join(',')).join(' ');
+        if (view.draft.length > 1) el(view.draftClosed ? 'polygon' : 'polyline', { points: pts }, d);
         view.draft.forEach((p, i) => el('circle', { cx: p[0], cy: p[1], r: i === view.draft.length - 1 ? 0.24 : 0.16 }, d));
       }
 

@@ -64,7 +64,14 @@ export function render() {
   const hasWalls = dayWalls.length > 0 || store.activeWalls().length > 0;
   $('climb-empty').hidden = hasWalls;
   $('climb-main').hidden = !hasWalls;
-  if (!hasWalls) return;
+  if (!hasWalls) {
+    const outline = Boolean(store.gym.outline);
+    $('climb-empty-title').textContent = outline ? 'Now add the walls' : 'Draw your gym first';
+    $('climb-empty-text').textContent = outline
+      ? 'The building outline is ready. Draw the climbing walls in Setup with + Wall, then tap a wall here to log a boulder.'
+      : 'Add the walls of your gym in Setup. Then tap a wall here to log a boulder.';
+    return;
+  }
 
   const selected = store.selectedGrade();
   $('palette').replaceChildren(...store.gym.grades.map((g) =>
@@ -75,10 +82,11 @@ export function render() {
 
   const daySends = store.sendsOn(day);
   // Walls of an older layout can reach past the current grid.
-  const ext = wallExtent(dayWalls);
+  const ext = wallExtent([...dayWalls, { points: store.gym.outline || [] }]);
   map.render({
     cols: Math.max(store.gym.cols, ext.cols),
     rows: Math.max(store.gym.rows, ext.rows),
+    outline: store.gym.outline,
     walls: dayWalls,
     pins: daySends.map((s) => ({
       x: s.x,

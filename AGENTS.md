@@ -31,6 +31,9 @@ over weeks and months.
     sent, extra outer halo = flash, dashed ring = tried.
   - A summary below the map lists, per colour in grade order, the counts of flash / sent / tried
     for the shown day, plus total tops.
+  - The map uses the full width; a long hall makes it taller than the screen and the page scrolls,
+    while the colour palette stays pinned at the top. Lay a long gym out upright (long side
+    vertical) so pins stay a usable size.
 - **Progress**: Weeks (last 12, Monday start) or Months (last 12). Tiles: sessions (days with
   any logged boulder), tops, flashes, hardest colour topped (by grade order). A stacked bar chart
   of tops per period, coloured by grade, with a legend, tap-for-details and a table view.
@@ -39,10 +42,17 @@ over weeks and months.
     duplicates of the last point ignored) → Done → name it. Tapping an existing wall selects it
     for renaming or deletion. A wall with logged sends is **retired** instead of deleted
     (`removedOn`): it leaves the current map, but older days still show it with its pins.
-  - **Grid size**: width and height in grid units (4–40). It cannot shrink past current walls.
-  - **Layout file**: Upload / Save file / Share a `b-log-layout.json` with the grid and the
-    current walls only (names and points; no ids, colours or climbs), so climbers at the same gym
-    can swap layouts and a gym rebuild can be loaded in one go. Uploading replaces the walls:
+  - **Building outline**: `+ Outline` / `Redraw outline` → tap the building's corners in order →
+    Done closes the polygon (at least 3 corners). It is drawn as a grey floor under the grid dots on
+    both maps and is never a wall: taps do not snap to it and boulders cannot be logged on it.
+    `Remove outline` appears while redrawing. Saving or removing offers Undo. The outline is not
+    versioned by date (only walls have history).
+  - **Grid size**: width and height in grid units (4–40). It cannot shrink past current walls or
+    the outline.
+  - **Layout file**: Upload / Save file / Share a `b-log-layout.json` with the grid, the outline
+    and the current walls only (names and points; no ids, colours or climbs), so climbers at the same gym
+    can swap layouts and a gym rebuild can be loaded in one go. Uploading replaces the outline
+    (cleared if the file has none) and the walls:
     walls with logged sends are retired, unused ones dropped, and the new walls get
     `addedOn` = today. Undo is offered until a boulder is logged on the new walls. A B-log
     `gym.json` is accepted as an upload too. Share is hidden where `share.available` is false;
@@ -109,6 +119,7 @@ Every mutation builds the next state, writes it, and publishes it only if the wr
   "version": 1,
   "cols": 12,
   "rows": 16,
+  "outline": [[0, 0], [12, 0], [12, 16], [0, 16]],
   "walls": [{ "id": "w_…", "name": "Slab", "points": [[1, 1], [7, 1]],
                "addedOn": "2026-11-24", "removedOn": "2026-12-01" }],
   "grades": [{ "id": "g_red", "name": "Red", "color": "#ef4444" }],
@@ -117,7 +128,8 @@ Every mutation builds the next state, writes it, and publishes it only if the wr
 ```
 `grades` order is the difficulty order, easiest first. `holds` are the hold colours; a file
 without `holds` (written before v0.2) loads the default list. Wall `addedOn`/`removedOn` are
-optional local dates (see wall history). `color` is `#rrggbb`. IDs are stable and
+optional local dates (see wall history). `outline` is optional (`null` or absent = none): a closed
+polygon of grid points. `color` is `#rrggbb`. IDs are stable and
 never reused; names can change freely.
 
 ### `data/sends.json`
@@ -131,10 +143,11 @@ never reused; names can change freely.
 ### Layout file (`b-log-layout.json`, not stored in `data/`)
 ```json
 { "format": "b-log-layout", "version": 1, "cols": 12, "rows": 16,
+  "outline": [[0, 0], [12, 0], [12, 16], [0, 16]],
   "walls": [{ "name": "Slab", "points": [[1, 1], [7, 1]] }] }
 ```
-Validated on upload: grid 4–40, 1–200 walls, 1–100 integer points per wall inside the grid,
-files up to 1 MiB.
+Validated on upload: grid 4–40, up to 200 walls (a file needs walls or an outline), 1–100 integer
+points per wall inside the grid, an optional outline of 3–100 such points, files up to 1 MiB.
 
 ### `data/settings.json`
 ```json

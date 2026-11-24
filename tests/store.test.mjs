@@ -116,7 +116,7 @@ test('a layout file round-trips and rejects broken files', () => {
   store.addWall('Slab', [[0, 0], [4, 0]]);
   const text = JSON.stringify(store.layoutFile());
   const parsed = store.parseLayout(text);
-  assert.deepEqual(parsed, { cols: 12, rows: 16, walls: [{ name: 'Slab', points: [[0, 0], [4, 0]] }] });
+  assert.deepEqual(parsed, { cols: 12, rows: 16, outline: null, walls: [{ name: 'Slab', points: [[0, 0], [4, 0]] }] });
   assert.throws(() => store.parseLayout('nope'), /not a B-log layout/);
   assert.throws(() => store.parseLayout(JSON.stringify({ cols: 12, rows: 16, walls: [] })), /no walls/);
   assert.throws(() => store.parseLayout(JSON.stringify({ cols: 99, rows: 16, walls: [] })), /grid/);
@@ -149,4 +149,22 @@ test('undoing an upload is refused once boulders are logged on the new walls', (
   const r = store.importLayout(store.parseLayout(JSON.stringify({ cols: 8, rows: 8, walls: [{ name: 'Cave', points: [[1, 1], [1, 5]] }] })));
   store.addSend({ date: localIso(), gradeId: 'g_red', wallId: store.activeWalls()[0].id, x: 1, y: 2, result: 'flash' });
   assert.throws(() => store.restoreLayout(r.previous), /cannot be undone/);
+});
+
+test('the outline is optional, round-trips through layout files and is replaced by an upload', () => {
+  assert.throws(() => store.parseLayout(JSON.stringify({ cols: 8, rows: 8, outline: [[0, 0], [9, 0], [0, 8]], walls: [] })), /outline/);
+  const prev = store.setOutline([[0, 0], [8, 0], [8, 8], [0, 8]]);
+  assert.equal(prev, null);
+  store.load();
+  assert.equal(store.gym.outline.length, 4);
+  const file = store.layoutFile();
+  assert.equal(file.outline.length, 4);
+  // An outline alone is a valid layout.
+  const only = store.parseLayout(JSON.stringify({ cols: 10, rows: 10, outline: [[0, 0], [10, 0], [10, 10]], walls: [] }));
+  const r = store.importLayout(only);
+  assert.deepEqual(store.gym.outline, [[0, 0], [10, 0], [10, 10]]);
+  store.restoreLayout(r.previous);
+  assert.equal(store.gym.outline.length, 4);
+  store.setOutline(null);
+  assert.equal(store.layoutFile().outline, undefined);
 });

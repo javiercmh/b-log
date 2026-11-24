@@ -128,6 +128,8 @@ button { font: inherit; color: inherit; cursor: pointer; }
 
 /* --- Palette --- */
 .palette { display: flex; gap: 10px; overflow-x: auto; padding: 4px 2px; scrollbar-width: none; }
+/* Stays reachable while scrolling a tall gym map. */
+#climb-main > .palette { position: sticky; top: var(--sa-top); z-index: 2; background: var(--bg); padding: 6px 2px; }
 .palette::-webkit-scrollbar { display: none; }
 .swatch {
   flex: 0 0 auto; width: 44px; height: 44px; border-radius: 50%; border: 2px solid var(--border);
@@ -139,7 +141,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 /* --- Map --- */
 .map-card { padding: 6px; }
 .map-host { width: 100%; touch-action: manipulation; }
-.map-svg { display: block; width: 100%; height: auto; max-height: 68vh; user-select: none; -webkit-user-select: none; }
+.map-svg { display: block; width: 100%; height: auto; user-select: none; -webkit-user-select: none; }
 .map-floor { fill: var(--floor); stroke: var(--border); stroke-width: 0.04; }
 .map-grid circle { fill: var(--grid-dot); }
 .wall { fill: none; stroke: var(--wall); stroke-width: 0.26; stroke-linecap: round; stroke-linejoin: round; }
@@ -150,6 +152,8 @@ circle.wall.selected { fill: var(--accent); }
   font-size: 0.48px; font-weight: 700; fill: var(--muted);
   paint-order: stroke; stroke: var(--floor); stroke-width: 0.14px; stroke-linejoin: round;
 }
+.map-outline { fill: var(--surface-2); stroke: var(--muted); stroke-width: 0.1; stroke-linejoin: round; opacity: 0.85; }
+.map-draft polygon { fill: none; stroke: var(--accent); stroke-width: 0.2; stroke-dasharray: 0.4 0.25; stroke-linejoin: round; }
 .map-draft polyline { fill: none; stroke: var(--accent); stroke-width: 0.2; stroke-dasharray: 0.4 0.25; stroke-linecap: round; }
 .map-draft circle { fill: var(--accent); }
 .pin-dot { stroke-width: 0.15; }
@@ -269,3 +273,6 @@ circle.wall.selected { fill: var(--accent); }
 
 /* All hold colours visible at once in the sheet: wrap instead of scrolling sideways. */
 #sheet-holds { flex-wrap: wrap; overflow: visible; }
+
+/* Setup: the drawing tools stay reachable above a tall map. */
+.map-tools { position: sticky; top: var(--sa-top); z-index: 2; background: var(--surface-solid); padding: 8px 0; margin-bottom: 4px; }
