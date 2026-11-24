@@ -78,6 +78,7 @@
         <h2>Gym map</h2>
         <span class="chip" id="grid-size-chip"></span>
       </div>
+      <input id="gym-name" class="field" maxlength="60" placeholder="Gym name, e.g. Rocktown" autocomplete="off" aria-label="Gym name">
       <div class="map-tools">
         <div id="tools-idle" class="row">
           <button id="wall-add" class="btn primary">+ Wall</button>
@@ -118,14 +119,16 @@
     </div>
 
     <div class="card">
-      <h2>Layout file</h2>
-      <p class="muted">Swap the gym's walls with friends. The file holds the grid, the building outline and the current walls, not colours or climbs. Uploading replaces them; walls you logged boulders on stay in your history.</p>
+      <h2>Gym layout</h2>
+      <p class="muted">Swap layouts with friends. A layout holds the gym name, the grid, the building outline and the current walls, not colours or climbs. Loading one replaces them; walls you logged boulders on stay in your history.</p>
       <div class="row">
         <button id="layout-upload" class="btn ghost">Upload</button>
         <button id="layout-save" class="btn ghost">Save file</button>
         <button id="layout-share" class="btn ghost">Share</button>
       </div>
       <input id="layout-file" type="file" accept="application/json,.json" hidden>
+      <p class="sheet-label">Built-in gyms</p>
+      <ul id="builtin-gyms" class="builtin-list"></ul>
     </div>
 
     <div class="card">

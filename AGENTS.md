@@ -42,6 +42,8 @@ over weeks and months.
     duplicates of the last point ignored) → Done → name it. Tapping an existing wall selects it
     for renaming or deletion. A wall with logged sends is **retired** instead of deleted
     (`removedOn`): it leaves the current map, but older days still show it with its pins.
+  - **Gym name**: a free-text field at the top of the Gym map card (up to 60 characters, empty =
+    none). It travels with layout files and names saved files (`rocktown-b-log-layout.json`).
   - **Building outline**: `+ Outline` / `Redraw outline` → tap the building's corners in order →
     Done closes the polygon (at least 3 corners). It is drawn as a grey floor under the grid dots on
     both maps and is never a wall: taps do not snap to it and boulders cannot be logged on it.
@@ -49,14 +51,18 @@ over weeks and months.
     versioned by date (only walls have history).
   - **Grid size**: width and height in grid units (4–40). It cannot shrink past current walls or
     the outline.
-  - **Layout file**: Upload / Save file / Share a `b-log-layout.json` with the grid, the outline
-    and the current walls only (names and points; no ids, colours or climbs), so climbers at the same gym
-    can swap layouts and a gym rebuild can be loaded in one go. Uploading replaces the outline
-    (cleared if the file has none) and the walls:
+  - **Gym layout**: Upload / Save file / Share a `<gym>-b-log-layout.json` with the gym name, the
+    grid, the outline and the current walls only (names and points; no ids, colours or climbs), so climbers at the same gym
+    can swap layouts and a gym rebuild can be loaded in one go. Uploading replaces the name and
+    outline (cleared if the file has none) and the walls:
     walls with logged sends are retired, unused ones dropped, and the new walls get
     `addedOn` = today. Undo is offered until a boulder is logged on the new walls. A B-log
     `gym.json` is accepted as an upload too. Share is hidden where `share.available` is false;
     Save falls back to a browser download in previews.
+  - **Built-in gyms**: a list under the layout buttons; **Load** works exactly like uploading that
+    layout (same replacement rules and Undo). The layouts live in `js/gyms.js` (an ES module, so
+    no fetch is needed); add a gym by appending its layout object there. Currently: Rocktown
+    (outline only, traced from a satellite view, west end at the top).
   - **Difficulty colours**: ordered easiest → hardest, each with a name and a colour. Reorder
     with ↑ ↓.
   - **Hold colours**: starts with 12 common hold colours; rename, recolour, reorder, add or
@@ -94,6 +100,7 @@ Pure logic lives in `geometry.js` and `stats.js` so it can be unit tested in Nod
 | `js/geometry.js` | Pure: snap to wall/grid, nearest pin, polyline midpoint, wall extent. |
 | `js/stats.js` | Pure: per-grade counts, week/month buckets, summary, local date helpers. |
 | `js/dom.js` | `$`, `h()` element builder (text via `textContent`), toast, `attempt()` error wrapper, swatch. |
+| `js/gyms.js` | Built-in gym layouts (plain layout-file objects) listed in Setup. |
 | `js/store.js` | Loads/validates/saves `data/*.json`. The only module that calls `bridge.js`. |
 | `js/bridge.js` | App² bridge wrapper, copied from the starter template. Do not edit except to refresh it from the host. |
 
@@ -117,6 +124,7 @@ Every mutation builds the next state, writes it, and publishes it only if the wr
 ```json
 {
   "version": 1,
+  "name": "Rocktown",
   "cols": 12,
   "rows": 16,
   "outline": [[0, 0], [12, 0], [12, 16], [0, 16]],
@@ -129,7 +137,7 @@ Every mutation builds the next state, writes it, and publishes it only if the wr
 `grades` order is the difficulty order, easiest first. `holds` are the hold colours; a file
 without `holds` (written before v0.2) loads the default list. Wall `addedOn`/`removedOn` are
 optional local dates (see wall history). `outline` is optional (`null` or absent = none): a closed
-polygon of grid points. `color` is `#rrggbb`. IDs are stable and
+polygon of grid points. `name` is the optional gym name (`null` or absent = none). `color` is `#rrggbb`. IDs are stable and
 never reused; names can change freely.
 
 ### `data/sends.json`
@@ -142,12 +150,12 @@ never reused; names can change freely.
 
 ### Layout file (`b-log-layout.json`, not stored in `data/`)
 ```json
-{ "format": "b-log-layout", "version": 1, "cols": 12, "rows": 16,
+{ "format": "b-log-layout", "version": 1, "name": "Rocktown", "cols": 12, "rows": 16,
   "outline": [[0, 0], [12, 0], [12, 16], [0, 16]],
   "walls": [{ "name": "Slab", "points": [[1, 1], [7, 1]] }] }
 ```
 Validated on upload: grid 4–40, up to 200 walls (a file needs walls or an outline), 1–100 integer
-points per wall inside the grid, an optional outline of 3–100 such points, files up to 1 MiB.
+points per wall inside the grid, an optional name (trimmed, up to 60 characters), an optional outline of 3–100 such points, files up to 1 MiB.
 
 ### `data/settings.json`
 ```json

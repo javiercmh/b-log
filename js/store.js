@@ -75,7 +75,8 @@ export function validGym(g) {
   const holdsOk = g.holds === undefined || (Array.isArray(g.holds) && g.holds.every(colourOk));
   const outlineOk = g.outline === undefined || g.outline === null || (Array.isArray(g.outline)
     && g.outline.every((p) => Array.isArray(p) && p.length === 2 && isNum(p[0]) && isNum(p[1])));
-  return wallsOk && g.grades.every(colourOk) && holdsOk && outlineOk;
+  const nameOk = g.name === undefined || g.name === null || typeof g.name === 'string';
+  return wallsOk && g.grades.every(colourOk) && holdsOk && outlineOk && nameOk;
 }
 
 export function validSend(s) {
@@ -219,6 +220,15 @@ export function restoreWalls(walls) {
   commitGym({ ...gym, walls });
 }
 
+// --- Gym name ---
+
+export const MAX_GYM_NAME = 60;
+
+export function setGymName(name) {
+  const clean = String(name || '').trim().slice(0, MAX_GYM_NAME);
+  commitGym({ ...gym, name: clean || null });
+}
+
 // --- Building outline: a closed polygon drawn under the walls; boulders cannot be logged on it ---
 
 /** Sets (points, at least 3) or clears (null) the outline. Returns the previous one for Undo. */
@@ -239,6 +249,7 @@ export function layoutFile() {
   return {
     format: LAYOUT_FORMAT,
     version: 1,
+    ...(gym.name ? { name: gym.name } : {}),
     cols: gym.cols,
     rows: gym.rows,
     ...(gym.outline ? { outline: gym.outline } : {}),
@@ -273,7 +284,9 @@ export function parseLayout(text) {
   }
   if (!walls.length && !outline) throw new Error('This layout has no walls.');
   if (walls.length > MAX_LAYOUT_WALLS) throw new Error(`A layout can have at most ${MAX_LAYOUT_WALLS} walls.`);
+  const name = typeof v.name === 'string' && v.name.trim() ? v.name.trim().slice(0, MAX_GYM_NAME) : null;
   return {
+    name,
     cols: v.cols,
     rows: v.rows,
     outline,
@@ -288,12 +301,12 @@ export function parseLayout(text) {
 }
 
 /**
- * Replaces the current layout (grid, outline, walls) with a parsed one. Walls with logged boulders are retired (kept
+ * Replaces the current layout (name, grid, outline, walls) with a parsed one. Walls with logged boulders are retired (kept
  * for the history); unused current walls are dropped. Returns the previous grid and walls for Undo.
  */
 export function importLayout(layout) {
   const today = localIso();
-  const previous = { cols: gym.cols, rows: gym.rows, walls: gym.walls, outline: gym.outline || null };
+  const previous = { name: gym.name || null, cols: gym.cols, rows: gym.rows, walls: gym.walls, outline: gym.outline || null };
   const retiring = activeWalls().filter((w) => wallSendCount(w.id) > 0);
   const kept = gym.walls
     .filter((w) => isRetired(w) || retiring.includes(w))
@@ -301,7 +314,7 @@ export function importLayout(layout) {
   const dates = kept.length ? { addedOn: today } : {};
   const stamp = uid('w');
   const added = layout.walls.map((w, i) => ({ id: `${stamp}${i}`, name: w.name, points: w.points, ...dates }));
-  commitGym({ ...gym, cols: layout.cols, rows: layout.rows, outline: layout.outline || null, walls: [...kept, ...added] });
+  commitGym({ ...gym, name: layout.name || null, cols: layout.cols, rows: layout.rows, outline: layout.outline || null, walls: [...kept, ...added] });
   return { previous, added: added.length, retired: retiring.length };
 }
 
@@ -311,7 +324,7 @@ export function restoreLayout(previous) {
   if (sends.some((s) => !ids.has(s.wallId))) {
     throw new Error('Boulders were already logged on the new walls, so the upload cannot be undone.');
   }
-  commitGym({ ...gym, cols: previous.cols, rows: previous.rows, walls: previous.walls, outline: previous.outline });
+  commitGym({ ...gym, name: previous.name, cols: previous.cols, rows: previous.rows, walls: previous.walls, outline: previous.outline });
 }
 
 export function resizeGrid(cols, rows) {

@@ -5,6 +5,7 @@ import { createMap } from './map.js';
 import { snapToGrid, snapToWall, wallExtent } from './geometry.js';
 import { $, h, toast, attempt } from './dom.js';
 import { save, share } from './bridge.js';
+import { BUILT_IN_GYMS } from './gyms.js';
 
 let map = null;
 let mode = 'idle';       // 'idle' | 'draw' | 'name' (new wall) | 'edit' (existing wall)
@@ -52,6 +53,14 @@ export function init() {
     input.click();
   };
   $('layout-file').onchange = uploadLayout;
+  $('gym-name').onchange = (e) => {
+    if (attempt(() => store.setGymName(e.target.value))) render();
+  };
+  $('gym-name').addEventListener('keydown', (e) => { if (e.key === 'Enter') e.target.blur(); });
+  $('builtin-gyms').replaceChildren(...BUILT_IN_GYMS.map((g) => h('li', {},
+    h('span', {}, h('span', { class: 'name', text: g.name }), ' ',
+      h('span', { class: 'muted', text: `${g.cols} × ${g.rows}${g.walls.length ? ` · ${g.walls.length} walls` : ' · outline'}` })),
+    h('button', { class: 'btn ghost', text: 'Load', 'aria-label': `Load ${g.name}`, onclick: () => loadLayout(JSON.stringify(g)) }))));
   $('layout-save').onclick = saveLayout;
   $('layout-share').onclick = shareLayout;
   $('layout-share').hidden = !share.available;
@@ -126,7 +135,12 @@ function deleteWall() {
 
 // --- Layout files ---
 
-const LAYOUT_NAME = 'b-log-layout.json';
+/** File name from the gym name: "Rocktown" → rocktown-b-log-layout.json. */
+function layoutName() {
+  const slug = (store.gym.name || '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase().replace(/ß/g, 'ss').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40);
+  return `${slug ? `${slug}-` : ''}b-log-layout.json`;
+}
 
 function layoutText() {
   return JSON.stringify(store.layoutFile(), null, 2);
@@ -143,13 +157,13 @@ async function saveLayout() {
   if (!save.available) {
     // Browser preview: a normal download.
     const url = URL.createObjectURL(new Blob([layoutText()], { type: 'application/json' }));
-    h('a', { href: url, download: LAYOUT_NAME }).click();
+    h('a', { href: url, download: layoutName() }).click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
     return;
   }
   try {
-    const r = await save.text({ name: LAYOUT_NAME, mimeType: 'application/json', content: layoutText() });
-    if (r && r.saved) toast(`Saved ${r.name || LAYOUT_NAME}`);
+    const r = await save.text({ name: layoutName(), mimeType: 'application/json', content: layoutText() });
+    if (r && r.saved) toast(`Saved ${r.name || layoutName()}`);
   } catch (err) {
     console.error(err);
     toast(err.code === 'busy' || err.code === 'not_foreground' ? 'App² is busy. Try again in a moment.' : 'Could not save the file.');
@@ -159,7 +173,7 @@ async function saveLayout() {
 async function shareLayout() {
   if (!checkHasWalls()) return;
   try {
-    await share.file({ name: LAYOUT_NAME, mimeType: 'application/json', content: layoutText() });
+    await share.file({ name: layoutName(), mimeType: 'application/json', content: layoutText() });
   } catch (err) {
     console.error(err);
     toast(err.code === 'busy' || err.code === 'not_foreground' ? 'App² is busy. Try again in a moment.' : 'Could not share the file.');
@@ -169,14 +183,16 @@ async function shareLayout() {
 async function uploadLayout() {
   const file = $('layout-file').files?.[0];
   if (!file) return;
+  if (file.size > 1024 * 1024) { toast('This file is too large for a layout.'); return; }
+  let text;
+  try { text = await file.text(); } catch { toast('Could not read the file.'); return; }
+  loadLayout(text);
+}
+
+/** Validates a layout file's text and replaces the current layout with it, offering Undo. */
+function loadLayout(text) {
   let layout;
-  try {
-    if (file.size > 1024 * 1024) throw new Error('This file is too large for a layout.');
-    layout = store.parseLayout(await file.text());
-  } catch (err) {
-    toast(err.message);
-    return;
-  }
+  try { layout = store.parseLayout(text); } catch (err) { toast(err.message); return; }
   let result = null;
   if (!attempt(() => { result = store.importLayout(layout); })) return;
   reset();
@@ -184,7 +200,7 @@ async function uploadLayout() {
     ? ` · ${result.retired} old wall${result.retired === 1 ? '' : 's'} kept for your history`
     : '';
   const walls = result.added ? ` · ${result.added} wall${result.added === 1 ? '' : 's'}` : '';
-  toast(`Layout uploaded${walls}${kept}`, 'Undo', () => {
+  toast(`${layout.name || 'Layout'} loaded${walls}${kept}`, 'Undo', () => {
     if (attempt(() => store.restoreLayout(result.previous))) render();
   });
 }
@@ -226,6 +242,7 @@ export function render() {
     $('wall-hint').textContent = '';
   }
 
+  if (document.activeElement !== $('gym-name')) $('gym-name').value = store.gym.name || '';
   $('grid-size-chip').textContent = `${store.gym.cols} × ${store.gym.rows}`;
   for (const stepper of document.querySelectorAll('.stepper')) {
     stepper.querySelector('output').textContent = store.gym[stepper.dataset.dim];

@@ -276,3 +276,6 @@ circle.wall.selected { fill: var(--accent); }
 
 /* Setup: the drawing tools stay reachable above a tall map. */
 .map-tools { position: sticky; top: var(--sa-top); z-index: 2; background: var(--surface-solid); padding: 8px 0; margin-bottom: 4px; }
+.builtin-list { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+.builtin-list li { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 48px; }
+.builtin-list .name { font-weight: 650; }

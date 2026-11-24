@@ -116,7 +116,7 @@ test('a layout file round-trips and rejects broken files', () => {
   store.addWall('Slab', [[0, 0], [4, 0]]);
   const text = JSON.stringify(store.layoutFile());
   const parsed = store.parseLayout(text);
-  assert.deepEqual(parsed, { cols: 12, rows: 16, outline: null, walls: [{ name: 'Slab', points: [[0, 0], [4, 0]] }] });
+  assert.deepEqual(parsed, { name: null, cols: 12, rows: 16, outline: null, walls: [{ name: 'Slab', points: [[0, 0], [4, 0]] }] });
   assert.throws(() => store.parseLayout('nope'), /not a B-log layout/);
   assert.throws(() => store.parseLayout(JSON.stringify({ cols: 12, rows: 16, walls: [] })), /no walls/);
   assert.throws(() => store.parseLayout(JSON.stringify({ cols: 99, rows: 16, walls: [] })), /grid/);
@@ -167,4 +167,27 @@ test('the outline is optional, round-trips through layout files and is replaced 
   assert.equal(store.gym.outline.length, 4);
   store.setOutline(null);
   assert.equal(store.layoutFile().outline, undefined);
+});
+
+test('the gym name is saved, travels with the layout and is restored by Undo', () => {
+  store.setGymName('  Rocktown  ');
+  store.load();
+  assert.equal(store.gym.name, 'Rocktown');
+  assert.equal(store.layoutFile().name, 'Rocktown');
+  const r = store.importLayout(store.parseLayout(JSON.stringify({ name: 'Other gym', cols: 8, rows: 8, outline: [[0, 0], [8, 0], [8, 8]], walls: [] })));
+  assert.equal(store.gym.name, 'Other gym');
+  store.restoreLayout(r.previous);
+  assert.equal(store.gym.name, 'Rocktown');
+  store.setGymName('');
+  assert.equal(store.gym.name, null);
+  assert.equal(store.layoutFile().name, undefined);
+});
+
+test('every built-in gym is a valid layout', async () => {
+  const { BUILT_IN_GYMS } = await import('../js/gyms.js');
+  assert.ok(BUILT_IN_GYMS.length > 0);
+  for (const g of BUILT_IN_GYMS) {
+    const parsed = store.parseLayout(JSON.stringify(g));
+    assert.equal(parsed.name, g.name);
+  }
 });
