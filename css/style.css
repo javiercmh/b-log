@@ -139,28 +139,62 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .palette-wrap { display: flex; flex-direction: column; gap: 4px; }
 
 /* --- Map --- */
-.map-card { padding: 6px; }
+.map-card { padding: 8px; }
 .map-host { width: 100%; touch-action: manipulation; }
 .map-svg { display: block; width: 100%; height: auto; user-select: none; -webkit-user-select: none; }
-.map-floor { fill: var(--floor); stroke: var(--border); stroke-width: calc(0.04 * var(--s, 1)); }
-.map-grid circle { fill: var(--grid-dot); }
-.wall { fill: none; stroke: var(--wall); stroke-width: calc(0.26 * var(--s, 1)); stroke-linecap: round; stroke-linejoin: round; }
-circle.wall { fill: var(--wall); stroke: none; }
-.wall.selected { stroke: var(--accent); }
-circle.wall.selected { fill: var(--accent); }
-.map-labels text {
-  font-size: calc(0.48px * var(--s, 1)); font-weight: 700; fill: var(--muted);
-  paint-order: stroke; stroke: var(--floor); stroke-width: calc(0.14px * var(--s, 1)); stroke-linejoin: round;
+.map-floor { fill: var(--floor); stroke: var(--border); stroke-width: calc(0.06 * var(--s, 1)); }
+.map-outline { fill: var(--surface-2); stroke: var(--muted); stroke-width: calc(0.14 * var(--s, 1)); stroke-linejoin: round; opacity: 0.9; }
+.grid-minor { stroke: var(--grid-dot); stroke-width: calc(0.035 * var(--s, 1)); stroke-dasharray: calc(0.12 * var(--s, 1)) calc(0.18 * var(--s, 1)); opacity: 0.55; }
+.grid-major { stroke: var(--grid-dot); stroke-width: calc(0.065 * var(--s, 1)); opacity: 0.85; }
+
+/* Floor zones */
+.zone { stroke-linejoin: round; }
+.zone-mat { fill: #64748b; fill-opacity: 0.28; stroke: #94a3b8; stroke-width: calc(0.12 * var(--s, 1)); }
+.zone-walkway { fill: var(--text); fill-opacity: 0.06; stroke: var(--muted); stroke-width: calc(0.11 * var(--s, 1)); stroke-dasharray: calc(0.35 * var(--s, 1)) calc(0.2 * var(--s, 1)); }
+.zone-floor { fill: #38bdf8; fill-opacity: 0.1; stroke: #38bdf8; stroke-width: calc(0.12 * var(--s, 1)); stroke-dasharray: calc(0.35 * var(--s, 1)) calc(0.22 * var(--s, 1)); }
+.zone-area { fill-opacity: 0.16; stroke-width: calc(0.11 * var(--s, 1)); stroke-dasharray: calc(0.3 * var(--s, 1)) calc(0.2 * var(--s, 1)); }
+.zone-label { font-size: calc(0.62px * var(--s, 1)); font-weight: 700; fill: var(--muted); letter-spacing: calc(0.02px * var(--s, 1)); pointer-events: none; }
+.zone-label-walkway { opacity: 0.85; }
+.zone-label-floor { font-size: calc(0.56px * var(--s, 1)); opacity: 0.9; }
+.zone-label-area { font-size: calc(0.66px * var(--s, 1)); }
+
+/* Colour-coded walls & pill badges */
+.wall { fill: none; stroke-width: calc(0.34 * var(--s, 1)); stroke-linecap: round; stroke-linejoin: round; }
+.wall-joint { fill: var(--floor); stroke-width: calc(0.1 * var(--s, 1)); }
+.wall-badge-bg { opacity: 0.96; }
+.wall-badge-text {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: calc(0.64px * var(--s, 1)); font-weight: 800; fill: #09090b; pointer-events: none;
 }
-.map-outline { fill: var(--surface-2); stroke: var(--muted); stroke-width: calc(0.1 * var(--s, 1)); stroke-linejoin: round; opacity: 0.85; }
-.map-draft polygon { fill: none; stroke: var(--accent); stroke-width: calc(0.2 * var(--s, 1)); stroke-dasharray: calc(0.4 * var(--s, 1)) calc(0.25 * var(--s, 1)); stroke-linejoin: round; }
-.map-draft polyline { fill: none; stroke: var(--accent); stroke-width: calc(0.2 * var(--s, 1)); stroke-dasharray: calc(0.4 * var(--s, 1)) calc(0.25 * var(--s, 1)); stroke-linecap: round; }
-.map-draft circle { fill: var(--accent); }
-.pin-dot { stroke-width: calc(0.15 * var(--s, 1)); }
+
+.pin-dot { stroke-width: calc(0.16 * var(--s, 1)); }
 .pin-tried .pin-dot { stroke-dasharray: calc(0.22 * var(--s, 1)) calc(0.14 * var(--s, 1)); }
-.pin-halo { fill: none; stroke-width: calc(0.1 * var(--s, 1)); }
+.pin-halo { fill: none; stroke-width: calc(0.11 * var(--s, 1)); }
 .pin-preview { animation: pulse 1s ease-in-out infinite; }
 @keyframes pulse { 50% { opacity: 0.35; } }
+
+/* Map legend (floor zones + colour-coded walls) */
+.map-legend { display: flex; flex-direction: column; gap: 10px; padding-top: 4px; }
+.zone-key { display: flex; flex-wrap: wrap; gap: 8px 14px; font-size: 0.78rem; color: var(--muted); }
+.zone-key-item { display: inline-flex; align-items: center; gap: 6px; }
+.zone-swatch { width: 13px; height: 13px; border-radius: 3px; display: inline-block; }
+.zone-swatch-mat { background: rgba(100, 116, 139, 0.36); border: 1.5px solid #94a3b8; }
+.zone-swatch-walkway { background: var(--surface-2); border: 1.5px dashed var(--muted); }
+.zone-swatch-floor { background: rgba(56, 189, 248, 0.16); border: 1.5px dashed #38bdf8; }
+.zone-swatch-area { background: rgba(245, 158, 11, 0.2); border: 1.5px dashed #f59e0b; }
+
+.wall-legend {
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 10px;
+}
+.wall-legend-item { display: flex; align-items: center; gap: 7px; min-width: 0; font-size: 0.82rem; }
+.wall-code-pill {
+  flex: 0 0 auto; min-width: 34px; padding: 2px 6px; border-radius: 6px; text-align: center;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.72rem; font-weight: 800; color: #09090b;
+}
+.wall-legend-name { font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* Result symbols (shape, not colour, tells flash/sent/tried apart). */
 .sym { display: inline-block; width: 12px; height: 12px; border-radius: 50%; vertical-align: -1px; margin-right: 4px; background: var(--text); }

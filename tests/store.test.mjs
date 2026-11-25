@@ -189,5 +189,11 @@ test('every built-in gym is a valid layout', async () => {
   for (const g of BUILT_IN_GYMS) {
     const parsed = store.parseLayout(JSON.stringify(g));
     assert.equal(parsed.name, g.name);
+    assert.equal(parsed.walls.length, g.walls.length);
+    store.importLayout(parsed);
+    const exported = store.layoutFile();
+    assert.equal(exported.walls[0].code, g.walls[0].code);
+    assert.equal(exported.walls[0].color, g.walls[0].color);
+    assert.equal(exported.zones.length, g.zones.length);
   }
 });

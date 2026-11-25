@@ -1,51 +1,15 @@
-// setup.js — the Setup screen: draw and name walls, size the grid, define ordered colours.
+// setup.js — the Setup screen: load/upload/share gym layouts and define ordered colours.
 
 import * as store from './store.js';
-import { createMap, mapScale } from './map.js';
-import { snapToGrid, snapToWall, wallExtent } from './geometry.js';
+import { createMap, renderMapLegend } from './map.js';
 import { $, h, toast, attempt } from './dom.js';
 import { save, share } from './bridge.js';
 import { BUILT_IN_GYMS } from './gyms.js';
 
 let map = null;
-let mode = 'idle';       // 'idle' | 'draw' | 'name' (new wall) | 'edit' (existing wall)
-let draft = [];
-let drawing = 'wall';    // what 'draw' mode is drawing: 'wall' | 'outline'
-let selectedId = null;
 
 export function init() {
-  map = createMap($('setup-map'), handleTap);
-
-  $('wall-add').onclick = () => { mode = 'draw'; drawing = 'wall'; draft = []; selectedId = null; render(); };
-  $('outline-draw').onclick = () => { mode = 'draw'; drawing = 'outline'; draft = []; selectedId = null; render(); };
-  $('outline-remove').onclick = () => saveOutline(null);
-  $('draw-undo').onclick = () => { draft.pop(); render(); };
-  $('draw-cancel').onclick = reset;
-  $('draw-done').onclick = () => {
-    if (drawing === 'outline') {
-      if (draft.length < 3) { toast('Place at least three corners.'); return; }
-      saveOutline(draft);
-      return;
-    }
-    if (draft.length < 2) { toast('Place at least two points.'); return; }
-    mode = 'name';
-    $('wall-name').value = '';
-    render();
-    $('wall-name').focus();
-  };
-  $('wall-name-cancel').onclick = () => {
-    if (mode === 'name') { mode = 'draw'; render(); } else reset();
-  };
-  $('wall-name-save').onclick = saveWall;
-  $('wall-name').addEventListener('keydown', (e) => { if (e.key === 'Enter') saveWall(); });
-  $('wall-delete').onclick = deleteWall;
-
-  for (const stepper of document.querySelectorAll('.stepper')) {
-    stepper.addEventListener('click', (e) => {
-      const btn = e.target.closest('button');
-      if (btn) resize(stepper.dataset.dim, Number(btn.dataset.step));
-    });
-  }
+  map = createMap($('setup-map'), null);
 
   $('layout-upload').onclick = () => {
     const input = $('layout-file');
@@ -76,63 +40,6 @@ export function init() {
   }
 }
 
-function reset() {
-  mode = 'idle';
-  draft = [];
-  selectedId = null;
-  render();
-}
-
-function handleTap(p) {
-  if (mode === 'draw') {
-    const pt = snapToGrid(p, store.gym.cols, store.gym.rows);
-    const last = draft[draft.length - 1];
-    if (!last || last[0] !== pt[0] || last[1] !== pt[1]) draft.push(pt);
-    render();
-    return;
-  }
-  if (mode === 'name') return;
-  const hit = snapToWall(p, store.activeWalls(), 0.8 * mapScale(store.gym.cols));
-  if (!hit) { if (mode === 'edit') reset(); return; }
-  selectedId = hit.wallId;
-  mode = 'edit';
-  $('wall-name').value = store.wall(selectedId)?.name || '';
-  render();
-}
-
-function saveWall() {
-  const name = $('wall-name').value.trim();
-  if (!name) { toast('Give the wall a name.'); $('wall-name').focus(); return; }
-  const ok = mode === 'name'
-    ? attempt(() => store.addWall(name, draft))
-    : attempt(() => store.renameWall(selectedId, name));
-  if (!ok) return;
-  $('wall-name').blur();
- 
-  reset();
-}
-
-function saveOutline(points) {
-  let previous = null;
-  if (!attempt(() => { previous = store.setOutline(points); })) return;
-  reset();
-  toast(points ? 'Outline saved' : 'Outline removed', 'Undo', () => {
-    if (attempt(() => store.setOutline(previous))) render();
-  });
-}
-
-function deleteWall() {
-  const w = store.wall(selectedId);
-  if (!w) return;
-  const kept = store.wallSendCount(w.id) > 0;
-  let previous = null;
-  if (!attempt(() => { previous = store.removeWall(w.id); })) return;
-  reset();
-  toast(kept ? `${w.name} removed · its boulders stay in your history` : `${w.name} deleted`, 'Undo', () => {
-    if (attempt(() => store.restoreWalls(previous))) render();
-  });
-}
-
 // --- Layout files ---
 
 /** File name from the gym name: "Rocktown" → rocktown-b-log-layout.json. */
@@ -146,16 +53,15 @@ function layoutText() {
   return JSON.stringify(store.layoutFile(), null, 2);
 }
 
-function checkHasWalls() {
+function checkHasLayout() {
   if (store.activeWalls().length || store.gym.outline) return true;
-  toast('Draw a wall or the outline first.');
+  toast('Load or upload a gym layout first.');
   return false;
 }
 
 async function saveLayout() {
-  if (!checkHasWalls()) return;
+  if (!checkHasLayout()) return;
   if (!save.available) {
-    // Browser preview: a normal download.
     const url = URL.createObjectURL(new Blob([layoutText()], { type: 'application/json' }));
     h('a', { href: url, download: layoutName() }).click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
@@ -171,7 +77,7 @@ async function saveLayout() {
 }
 
 async function shareLayout() {
-  if (!checkHasWalls()) return;
+  if (!checkHasLayout()) return;
   try {
     await share.file({ name: layoutName(), mimeType: 'application/json', content: layoutText() });
   } catch (err) {
@@ -195,7 +101,7 @@ function loadLayout(text) {
   try { layout = store.parseLayout(text); } catch (err) { toast(err.message); return; }
   let result = null;
   if (!attempt(() => { result = store.importLayout(layout); })) return;
-  reset();
+  render();
   const kept = result.retired
     ? ` · ${result.retired} old wall${result.retired === 1 ? '' : 's'} kept for your history`
     : '';
@@ -205,60 +111,21 @@ function loadLayout(text) {
   });
 }
 
-function resize(dim, step) {
-  const ext = wallExtent([...store.activeWalls(), { points: store.gym.outline || [] }]);
-  const min = Math.max(store.MIN_GRID, dim === 'cols' ? ext.cols : ext.rows);
-  const next = Math.max(min, Math.min(store.MAX_GRID, store.gym[dim] + step));
-  if (next === store.gym[dim]) {
-    if (step < 0 && next === min && min > store.MIN_GRID) toast('A wall or the outline is in the way.');
-    return;
-  }
-  const cols = dim === 'cols' ? next : store.gym.cols;
-  const rows = dim === 'rows' ? next : store.gym.rows;
-  if (attempt(() => store.resizeGrid(cols, rows))) render();
-}
-
 export function render() {
-  $('tools-idle').hidden = mode !== 'idle';
-  $('tools-draw').hidden = mode !== 'draw';
-  $('tools-name').hidden = mode !== 'name' && mode !== 'edit';
-  const needed = drawing === 'outline' ? 3 : 2;
-  $('draw-done').disabled = draft.length < needed;
-  $('draw-hint').textContent = drawing === 'outline'
-    ? 'Tap the corners of the building in order. Done closes the shape. Boulders cannot be logged on the outline.'
-    : 'Tap grid points to place the corners of the wall.';
-  $('outline-remove').hidden = !(mode === 'draw' && drawing === 'outline' && store.gym.outline);
-  $('outline-draw').textContent = store.gym.outline ? 'Redraw outline' : '+ Outline';
-  $('draw-undo').disabled = draft.length === 0;
-  $('wall-delete').hidden = mode !== 'edit';
-
-  if (mode === 'edit') {
-    const count = store.wallSendCount(selectedId);
-    $('wall-delete').textContent = count > 0 ? 'Remove' : 'Delete';
-    $('wall-hint').textContent = count > 0
-      ? `${count} logged boulder${count === 1 ? '' : 's'} on this wall. Removing it takes it off the map; older days still show it with its boulders.`
-      : '';
-  } else {
-    $('wall-hint').textContent = '';
-  }
-
   if (document.activeElement !== $('gym-name')) $('gym-name').value = store.gym.name || '';
   $('grid-size-chip').textContent = `${store.gym.cols} × ${store.gym.rows}`;
-  for (const stepper of document.querySelectorAll('.stepper')) {
-    stepper.querySelector('output').textContent = store.gym[stepper.dataset.dim];
-  }
 
+  const walls = store.activeWalls();
   map.render({
     cols: store.gym.cols,
     rows: store.gym.rows,
     outline: store.gym.outline,
-    walls: store.activeWalls(),
+    zones: store.gym.zones,
+    walls,
     pins: [],
-    selectedWallId: selectedId,
-    draft: mode === 'draw' || mode === 'name' ? draft : null,
-    draftClosed: drawing === 'outline',
-    label: 'Gym map editor'
+    label: 'Gym map preview'
   });
+  renderMapLegend($('setup-legend'), { walls, zones: store.gym.zones });
 
   renderColours('grades');
   renderColours('holds');

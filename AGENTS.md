@@ -38,31 +38,19 @@ over weeks and months.
   any logged boulder), tops, flashes, hardest colour topped (by grade order). A stacked bar chart
   of tops per period, coloured by grade, with a legend, tap-for-details and a table view.
 - **Setup**
-  - **Gym map**: `+ Wall` → tap grid points to place the wall's corners (snapped to the grid,
-    duplicates of the last point ignored) → Done → name it. Tapping an existing wall selects it
-    for renaming or deletion. A wall with logged sends is **retired** instead of deleted
-    (`removedOn`): it leaves the current map, but older days still show it with its pins.
-  - **Gym name**: a free-text field at the top of the Gym map card (up to 60 characters, empty =
-    none). It travels with layout files and names saved files (`rocktown-b-log-layout.json`).
-  - **Building outline**: `+ Outline` / `Redraw outline` → tap the building's corners in order →
-    Done closes the polygon (at least 3 corners). It is drawn as a grey floor under the grid dots on
-    both maps and is never a wall: taps do not snap to it and boulders cannot be logged on it.
-    `Remove outline` appears while redrawing. Saving or removing offers Undo. The outline is not
-    versioned by date (only walls have history).
-  - **Grid size**: width and height in grid units (4–100). It cannot shrink past current walls or
-    the outline.
-  - **Gym layout**: Upload / Save file / Share a `<gym>-b-log-layout.json` with the gym name, the
-    grid, the outline and the current walls only (names and points; no ids, colours or climbs), so climbers at the same gym
-    can swap layouts and a gym rebuild can be loaded in one go. Uploading replaces the name and
-    outline (cleared if the file has none) and the walls:
-    walls with logged sends are retired, unused ones dropped, and the new walls get
-    `addedOn` = today. Undo is offered until a boulder is logged on the new walls. A B-log
-    `gym.json` is accepted as an upload too. Share is hidden where `share.available` is false;
-    Save falls back to a browser download in previews.
+  - **Gym layout**: maps are designed externally (e.g. with AI) as JSON layout files rather than
+    drawn manually in-app. Setup shows the **Gym name** field (up to 60 characters), **Upload /
+    Save file / Share** buttons, **Built-in gyms** (`Rocktown`), a read-only preview of the map
+    with floor zones (`mat`, `walkway`, `floor`, `area`), and the colour-coded wall legend.
+    Uploading replaces the name, grid, outline, zones and walls: walls with logged sends are
+    retired, unused ones dropped, and the new walls get `addedOn` = today. Undo is offered until a
+    boulder is logged on the new walls. A B-log `gym.json` is accepted as an upload too. Share is
+    hidden where `share.available` is false; Save falls back to a browser download in previews.
   - **Built-in gyms**: a list under the layout buttons; **Load** works exactly like uploading that
     layout (same replacement rules and Undo). The layouts live in `js/gyms.js` (an ES module, so
     no fetch is needed); add a gym by appending its layout object there. Currently: Rocktown
-    (26 × 98 with 2nd floor above the 1st floor outline, west end at the top).
+    (26 × 100 with 2nd floor above the 1st floor outline, mats, walkway, named areas, and
+    colour-coded walls).
   - **Difficulty colours**: ordered easiest → hardest, each with a name and a colour. Reorder
     with ↑ ↓.
   - **Hold colours**: starts with 12 common hold colours; rename, recolour, reorder, add or

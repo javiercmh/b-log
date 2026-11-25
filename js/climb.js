@@ -1,7 +1,7 @@
 // climb.js — the Climb screen: day switcher, colour palette, map logging and the day summary.
 
 import * as store from './store.js';
-import { createMap, PIN_R, mapScale } from './map.js';
+import { createMap, PIN_R, mapScale, renderMapLegend } from './map.js';
 import { snapToWall, nearestPoint, wallExtent } from './geometry.js';
 import { gradeCounts, localIso, addDays, parseIso } from './stats.js';
 import { $, h, toast, attempt, swatch } from './dom.js';
@@ -87,6 +87,7 @@ export function render() {
     cols: Math.max(store.gym.cols, ext.cols),
     rows: Math.max(store.gym.rows, ext.rows),
     outline: store.gym.outline,
+    zones: store.gym.zones,
     walls: dayWalls,
     pins: daySends.map((s) => ({
       x: s.x,
@@ -100,6 +101,7 @@ export function render() {
       : null,
     label: `Gym map with ${daySends.length} logged boulders`
   });
+  renderMapLegend($('climb-legend'), { walls: dayWalls, zones: store.gym.zones });
 
   renderSummary(daySends);
 }

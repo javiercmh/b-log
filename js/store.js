@@ -63,20 +63,34 @@ function readJson(path) {
 
 const isNum = (n) => typeof n === 'number' && Number.isFinite(n);
 const isColor = (c) => typeof c === 'string' && /^#[0-9a-f]{6}$/i.test(c);
+const isPoint = (p) => Array.isArray(p) && p.length === 2 && isNum(p[0]) && isNum(p[1]);
+const ZONE_KINDS = new Set(['mat', 'walkway', 'area', 'floor']);
+
+function validZone(z) {
+  return z && typeof z === 'object' && ZONE_KINDS.has(z.kind)
+    && Array.isArray(z.points) && z.points.length >= 3 && z.points.every(isPoint)
+    && (z.label === undefined || z.label === null || typeof z.label === 'string')
+    && (z.labelPos === undefined || z.labelPos === null || isPoint(z.labelPos))
+    && (z.rotate === undefined || z.rotate === null || isNum(z.rotate))
+    && (z.color === undefined || z.color === null || isColor(z.color));
+}
 
 export function validGym(g) {
   if (!g || typeof g !== 'object') return false;
   if (!Number.isInteger(g.cols) || !Number.isInteger(g.rows)) return false;
   if (!Array.isArray(g.walls) || !Array.isArray(g.grades)) return false;
   const wallsOk = g.walls.every((w) => typeof w.id === 'string' && typeof w.name === 'string'
-    && Array.isArray(w.points) && w.points.length >= 1
-    && w.points.every((p) => Array.isArray(p) && p.length === 2 && isNum(p[0]) && isNum(p[1])));
+    && Array.isArray(w.points) && w.points.length >= 1 && w.points.every(isPoint)
+    && (w.code === undefined || w.code === null || typeof w.code === 'string')
+    && (w.color === undefined || w.color === null || isColor(w.color))
+    && (w.labelPos === undefined || w.labelPos === null || isPoint(w.labelPos)));
   const colourOk = (c) => typeof c.id === 'string' && typeof c.name === 'string' && isColor(c.color);
   const holdsOk = g.holds === undefined || (Array.isArray(g.holds) && g.holds.every(colourOk));
   const outlineOk = g.outline === undefined || g.outline === null || (Array.isArray(g.outline)
-    && g.outline.every((p) => Array.isArray(p) && p.length === 2 && isNum(p[0]) && isNum(p[1])));
+    && g.outline.every(isPoint));
+  const zonesOk = g.zones === undefined || g.zones === null || (Array.isArray(g.zones) && g.zones.every(validZone));
   const nameOk = g.name === undefined || g.name === null || typeof g.name === 'string';
-  return wallsOk && g.grades.every(colourOk) && holdsOk && outlineOk && nameOk;
+  return wallsOk && g.grades.every(colourOk) && holdsOk && outlineOk && zonesOk && nameOk;
 }
 
 export function validSend(s) {
@@ -253,7 +267,14 @@ export function layoutFile() {
     cols: gym.cols,
     rows: gym.rows,
     ...(gym.outline ? { outline: gym.outline } : {}),
-    walls: activeWalls().map((w) => ({ name: w.name, points: w.points }))
+    ...(gym.zones && gym.zones.length ? { zones: gym.zones } : {}),
+    walls: activeWalls().map((w) => ({
+      ...(w.code ? { code: w.code } : {}),
+      name: w.name,
+      points: w.points,
+      ...(w.color ? { color: w.color } : {}),
+      ...(w.labelPos ? { labelPos: w.labelPos } : {})
+    }))
   };
 }
 
@@ -275,12 +296,31 @@ export function parseLayout(text) {
   const walls = v.walls.filter((w) => w && !w.removedOn);
   const onGrid = (p) => Array.isArray(p) && p.length === 2 && Number.isInteger(p[0]) && Number.isInteger(p[1])
     && p[0] >= 0 && p[0] <= v.cols && p[1] >= 0 && p[1] <= v.rows;
+  const inBounds = (p) => isPoint(p) && p[0] >= 0 && p[0] <= v.cols && p[1] >= 0 && p[1] <= v.rows;
   let outline = null;
   if (v.outline !== undefined && v.outline !== null) {
     if (!Array.isArray(v.outline) || v.outline.length < 3 || v.outline.length > MAX_WALL_POINTS || !v.outline.every(onGrid)) {
       throw new Error("The building outline in this layout is broken.");
     }
     outline = v.outline.map(([x, y]) => [x, y]);
+  }
+  let zones = null;
+  if (v.zones !== undefined && v.zones !== null) {
+    if (!Array.isArray(v.zones) || v.zones.length > 100 || !v.zones.every((z) => validZone(z)
+      && z.points.length <= MAX_WALL_POINTS && z.points.every(inBounds)
+      && (!z.labelPos || inBounds(z.labelPos)))) {
+      throw new Error('The floor zones in this layout are broken.');
+    }
+    if (v.zones.length) {
+      zones = v.zones.map((z) => ({
+        kind: z.kind,
+        points: z.points.map(([x, y]) => [x, y]),
+        ...(typeof z.label === 'string' && z.label.trim() ? { label: z.label.trim().slice(0, 40) } : {}),
+        ...(z.labelPos ? { labelPos: [z.labelPos[0], z.labelPos[1]] } : {}),
+        ...(isNum(z.rotate) ? { rotate: z.rotate } : {}),
+        ...(z.color ? { color: z.color } : {})
+      }));
+    }
   }
   if (!walls.length && !outline) throw new Error('This layout has no walls.');
   if (walls.length > MAX_LAYOUT_WALLS) throw new Error(`A layout can have at most ${MAX_LAYOUT_WALLS} walls.`);
@@ -290,31 +330,65 @@ export function parseLayout(text) {
     cols: v.cols,
     rows: v.rows,
     outline,
+    ...(zones ? { zones } : {}),
     walls: walls.map((w, i) => {
-      if (!Array.isArray(w.points) || !w.points.length || w.points.length > MAX_WALL_POINTS || !w.points.every(onGrid)) {
+      if (!Array.isArray(w.points) || !w.points.length || w.points.length > MAX_WALL_POINTS || !w.points.every(onGrid)
+        || (w.code !== undefined && w.code !== null && typeof w.code !== 'string')
+        || (w.color !== undefined && w.color !== null && !isColor(w.color))
+        || (w.labelPos !== undefined && w.labelPos !== null && !inBounds(w.labelPos))) {
         throw new Error(`Wall ${i + 1} in this layout is broken.`);
       }
-      const name = typeof w.name === 'string' && w.name.trim() ? w.name.trim().slice(0, 40) : `Wall ${i + 1}`;
-      return { name, points: w.points.map(([x, y]) => [x, y]) };
+      const wName = typeof w.name === 'string' && w.name.trim() ? w.name.trim().slice(0, 40) : `Wall ${i + 1}`;
+      const wCode = typeof w.code === 'string' && w.code.trim() ? w.code.trim().slice(0, 8) : null;
+      return {
+        ...(wCode ? { code: wCode } : {}),
+        name: wName,
+        points: w.points.map(([x, y]) => [x, y]),
+        ...(w.color ? { color: w.color } : {}),
+        ...(w.labelPos ? { labelPos: [w.labelPos[0], w.labelPos[1]] } : {})
+      };
     })
   };
 }
 
 /**
- * Replaces the current layout (name, grid, outline, walls) with a parsed one. Walls with logged boulders are retired (kept
+ * Replaces the current layout (name, grid, outline, zones, walls) with a parsed one. Walls with logged boulders are retired (kept
  * for the history); unused current walls are dropped. Returns the previous grid and walls for Undo.
  */
 export function importLayout(layout) {
   const today = localIso();
-  const previous = { name: gym.name || null, cols: gym.cols, rows: gym.rows, walls: gym.walls, outline: gym.outline || null };
+  const previous = {
+    name: gym.name || null,
+    cols: gym.cols,
+    rows: gym.rows,
+    walls: gym.walls,
+    outline: gym.outline || null,
+    zones: gym.zones || null
+  };
   const retiring = activeWalls().filter((w) => wallSendCount(w.id) > 0);
   const kept = gym.walls
     .filter((w) => isRetired(w) || retiring.includes(w))
     .map((w) => (isRetired(w) ? w : { ...w, removedOn: today }));
   const dates = kept.length ? { addedOn: today } : {};
   const stamp = uid('w');
-  const added = layout.walls.map((w, i) => ({ id: `${stamp}${i}`, name: w.name, points: w.points, ...dates }));
-  commitGym({ ...gym, name: layout.name || null, cols: layout.cols, rows: layout.rows, outline: layout.outline || null, walls: [...kept, ...added] });
+  const added = layout.walls.map((w, i) => ({
+    id: `${stamp}${i}`,
+    ...(w.code ? { code: w.code } : {}),
+    name: w.name,
+    points: w.points,
+    ...(w.color ? { color: w.color } : {}),
+    ...(w.labelPos ? { labelPos: w.labelPos } : {}),
+    ...dates
+  }));
+  commitGym({
+    ...gym,
+    name: layout.name || null,
+    cols: layout.cols,
+    rows: layout.rows,
+    outline: layout.outline || null,
+    zones: layout.zones || null,
+    walls: [...kept, ...added]
+  });
   return { previous, added: added.length, retired: retiring.length };
 }
 
@@ -324,7 +398,15 @@ export function restoreLayout(previous) {
   if (sends.some((s) => !ids.has(s.wallId))) {
     throw new Error('Boulders were already logged on the new walls, so the upload cannot be undone.');
   }
-  commitGym({ ...gym, name: previous.name, cols: previous.cols, rows: previous.rows, walls: previous.walls, outline: previous.outline });
+  commitGym({
+    ...gym,
+    name: previous.name,
+    cols: previous.cols,
+    rows: previous.rows,
+    walls: previous.walls,
+    outline: previous.outline,
+    zones: previous.zones || null
+  });
 }
 
 export function resizeGrid(cols, rows) {
