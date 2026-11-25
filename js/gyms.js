@@ -9,7 +9,7 @@ export const BUILT_IN_GYMS = [
     format: 'b-log-layout',
     version: 1,
     id: 'rocktown',
-    revision: 3,
+    revision: 4,
     name: 'RockTown Kaiserslautern',
     formerNames: ['Rocktown'],
     cols: 26,
@@ -43,8 +43,6 @@ export const BUILT_IN_GYMS = [
         rotate: -90,
         points: [[11, 40], [16, 40], [18, 69], [26, 69], [26, 72], [17, 72], [15, 77], [15, 95], [26, 95], [26, 100], [10, 98], [8, 72], [0, 59], [11, 59]]
       },
-      // 2F overhang footprint above 1F cave
-      { kind: 'floor', points: [[26, 20], [26, 36], [0, 36], [0, 24]] },
       // Named non-climbing areas
       { kind: 'area', label: 'Bistro', color: '#f59e0b', points: [[6, 61], [14, 61], [14, 70], [6, 70]] },
       { kind: 'area', label: 'ENTRANCE', color: '#4ade80', labelPos: [18, 98.2], points: [[11, 96], [25, 96], [25, 99.5], [11, 99.5]] }
