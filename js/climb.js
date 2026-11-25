@@ -128,9 +128,10 @@ function renderDayStats(daySends) {
     h('span', {}, h('b', { text: String(tops) }), ` top${tops === 1 ? '' : 's'}`),
     h('span', {}, h('i', { class: 'sym sym-flash' }), h('b', { text: String(flashes) }), ' flash'),
     h('span', {}, h('i', { class: 'sym sym-tried' }), h('b', { text: String(tried) }), ' tried'),
-    daySends.length
-      ? h('button', { class: 'link-btn', text: 'Details', onclick: () => $('summary-card').scrollIntoView({ behavior: 'smooth', block: 'center' }) })
-      : null);
+    // replaceChildren() would print a null child as the text "null", so leave it out instead.
+    ...(daySends.length
+      ? [h('button', { class: 'link-btn', text: 'Details', onclick: () => $('summary-card').scrollIntoView({ behavior: 'smooth', block: 'center' }) })]
+      : []));
 }
 
 function renderSummary(daySends) {
