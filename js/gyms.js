@@ -1,10 +1,14 @@
 // gyms.js — built-in gym layouts offered in Setup. Each entry is a layout file (see AGENTS.md),
 // loaded exactly like an uploaded one. Add a gym by appending its layout here.
+// `id` is permanent; bump `revision` whenever a gym's layout changes so the app offers the update.
+// Walls are matched across revisions by `code` (else name): keep a wall's code to keep its history.
 
 export const BUILT_IN_GYMS = [
   {
     format: 'b-log-layout',
     version: 1,
+    id: 'rocktown',
+    revision: 1,
     name: 'Rocktown',
     cols: 26,
     rows: 100,

@@ -8,9 +8,10 @@ colour of its holds so you know which route it was.
   switch days to review or edit older ones. A summary counts flashes, sends and tries per colour.
 - **Progress**: tops per week or month as a stacked chart by colour, sessions, flashes and your
   hardest colour.
-- **Setup**: draw the building outline and the walls on a grid, name the walls, set your gym's difficulty colours from easiest to
-  hardest, and edit the list of hold colours. Load a built-in gym (Rocktown so far), or upload, save
-  or share the gym layout as a file to swap it with friends; when the gym is rebuilt, the old walls stay in your history.
+- **Setup**: load a built-in gym (Rocktown so far) or upload, save and share gym layout files.
+  When a built-in gym's map changes, B-log offers the update and keeps your walls and history.
+  Drag to order your gym's difficulty colours and the hold colours, and pick light, dark or system
+  appearance.
 
 Everything stays on the phone in plain JSON files (`data/`), included in App² exports and backups.
 No internet permission needed.

@@ -48,15 +48,23 @@ export function attempt(fn) {
   }
 }
 
-export function swatch(grade, checked, onClick) {
+/** A colour as a dot with its name below; `badge` (a number) shows a count on the dot. */
+export function namedSwatch(colour, checked, onClick, badge = 0) {
   return h('button', {
     type: 'button',
-    class: 'swatch',
+    class: 'nsw',
     role: 'radio',
     'aria-checked': String(checked),
-    'aria-label': grade.name,
-    title: grade.name,
-    style: `background:${grade.color}`,
+    'aria-label': badge ? `${colour.name}, ${badge} topped` : colour.name,
     onclick: onClick
-  });
+  },
+  h('span', { class: 'nsw-dot', style: `background:${colour.color}` },
+    badge ? h('span', { class: 'count-badge', 'aria-hidden': 'true', text: String(badge) }) : null),
+  h('span', { class: 'nsw-name', 'aria-hidden': 'true', text: colour.name }));
+}
+
+/** 'system' follows the phone's light/dark mode; 'light' and 'dark' force it (see style.css). */
+export function applyTheme(theme) {
+  if (theme === 'light' || theme === 'dark') document.documentElement.dataset.theme = theme;
+  else delete document.documentElement.dataset.theme;
 }

@@ -34,3 +34,13 @@ test('summary finds the hardest top by grade order, ignoring tries', () => {
   assert.deepEqual({ ...out, hardest: out.hardest.id }, { sessions: 2, tops: 2, flashes: 1, hardest: 'b' });
   assert.equal(summary([], grades).hardest, null);
 });
+
+test('chart axis uses whole-number ticks that fit the data', async () => {
+  const { niceScale } = await import('../js/stats.js');
+  assert.deepEqual(niceScale(0), { max: 2, ticks: 2 });
+  assert.deepEqual(niceScale(4), { max: 4, ticks: 4 });
+  assert.deepEqual(niceScale(9), { max: 10, ticks: 5 });
+  assert.deepEqual(niceScale(25), { max: 25, ticks: 5 });
+  assert.deepEqual(niceScale(26), { max: 30, ticks: 3 });
+  assert.deepEqual(niceScale(130), { max: 150, ticks: 3 });
+});

@@ -36,7 +36,8 @@ function defaultHolds() {
   ].map(([id, name, color]) => ({ id: `h_${id}`, name, color }));
 }
 
-export const DEFAULT_SETTINGS = { version: 1, selectedGradeId: null };
+export const THEMES = ['system', 'light', 'dark'];
+export const DEFAULT_SETTINGS = { version: 1, selectedGradeId: null, theme: 'system' };
 
 export const MIN_GRID = 4;
 export const MAX_GRID = 100;
@@ -90,7 +91,14 @@ export function validGym(g) {
     && g.outline.every(isPoint));
   const zonesOk = g.zones === undefined || g.zones === null || (Array.isArray(g.zones) && g.zones.every(validZone));
   const nameOk = g.name === undefined || g.name === null || typeof g.name === 'string';
-  return wallsOk && g.grades.every(colourOk) && holdsOk && outlineOk && zonesOk && nameOk;
+  const sourceOk = g.source === undefined || g.source === null || validSource(g.source);
+  return wallsOk && g.grades.every(colourOk) && holdsOk && outlineOk && zonesOk && nameOk && sourceOk;
+}
+
+/** Which built-in gym (and which revision of it) the current layout was loaded from. */
+function validSource(s) {
+  return s && typeof s === 'object' && typeof s.id === 'string' && s.id.length > 0 && s.id.length <= 40
+    && Number.isInteger(s.revision) && s.revision >= 1;
 }
 
 export function validSend(s) {
@@ -117,6 +125,7 @@ export function load() {
   if (st.missing) settings = { ...DEFAULT_SETTINGS };
   else if (st.value && typeof st.value === 'object') settings = { ...DEFAULT_SETTINGS, ...st.value };
   else corrupt.add(FILES.settings);
+  if (!THEMES.includes(settings.theme)) settings = { ...settings, theme: 'system' };
 }
 
 function write(path, value) {
@@ -150,6 +159,14 @@ export function selectedGrade() {
 
 export function selectGrade(id) {
   const next = { ...settings, selectedGradeId: id };
+  write(FILES.settings, next);
+  settings = next;
+}
+
+/** 'system' follows the phone; 'light' and 'dark' override it. */
+export function setTheme(theme) {
+  if (!THEMES.includes(theme)) throw new Error('Unknown theme.');
+  const next = { ...settings, theme };
   write(FILES.settings, next);
   settings = next;
 }
@@ -338,8 +355,11 @@ export function parseLayout(text) {
   if (!walls.length && !outline) throw new Error('This layout has no walls.');
   if (walls.length > MAX_LAYOUT_WALLS) throw new Error(`A layout can have at most ${MAX_LAYOUT_WALLS} walls.`);
   const name = typeof v.name === 'string' && v.name.trim() ? v.name.trim().slice(0, MAX_GYM_NAME) : null;
+  // Built-in gyms carry an id and a revision so B-log can offer their updates.
+  const source = validSource({ id: v.id, revision: v.revision }) ? { id: v.id, revision: v.revision } : null;
   return {
     name,
+    ...(source ? { source } : {}),
     cols: v.cols,
     rows: v.rows,
     outline,
@@ -365,9 +385,20 @@ export function parseLayout(text) {
   };
 }
 
+/** A wall's identity across layout versions: its code (e.g. "W5"), else its name. */
+const wallKey = (w) => (w.code || w.name).trim().toLowerCase();
+
+/** True when a layout is a new version of the current gym rather than a different gym. */
+function sameGym(layout) {
+  if (layout.source && gym.source) return layout.source.id === gym.source.id;
+  return Boolean(layout.name && gym.name && layout.name.toLowerCase() === gym.name.toLowerCase());
+}
+
 /**
  * Replaces the current layout (name, grid, outline, zones, walls, and optional grades) with a parsed one.
- * Walls with logged boulders are retired (kept for the history); unused current walls are dropped.
+ * When the layout is a new version of the same gym, walls are matched by code (else name): a matched
+ * wall keeps its id and history and only takes the new shape. Unmatched walls with logged boulders are
+ * retired (kept for the history); unused ones are dropped.
  * When the layout includes grades, existing grade IDs matching by name are reused, and any unlisted
  * grades with logged boulders are kept so history stays intact. Returns the previous state for Undo.
  */
@@ -375,6 +406,7 @@ export function importLayout(layout) {
   const today = localIso();
   const previous = {
     name: gym.name || null,
+    source: gym.source || null,
     cols: gym.cols,
     rows: gym.rows,
     walls: gym.walls,
@@ -382,21 +414,35 @@ export function importLayout(layout) {
     zones: gym.zones || null,
     grades: gym.grades
   };
-  const retiring = activeWalls().filter((w) => wallSendCount(w.id) > 0);
+  const current = new Map(sameGym(layout) ? activeWalls().map((w) => [wallKey(w), w]) : []);
+  const matched = new Set();
+  let reshaped = 0;
+  const pending = layout.walls.map((w) => {
+    const match = current.get(wallKey(w));
+    if (!match || matched.has(match.id)) return { w, match: null };
+    matched.add(match.id);
+    if (JSON.stringify(match.points) !== JSON.stringify(w.points)) reshaped++;
+    return { w, match };
+  });
+  const retiring = activeWalls().filter((w) => !matched.has(w.id) && wallSendCount(w.id) > 0);
   const kept = gym.walls
     .filter((w) => isRetired(w) || retiring.includes(w))
     .map((w) => (isRetired(w) ? w : { ...w, removedOn: today }));
   const dates = kept.length ? { addedOn: today } : {};
   const stamp = uid('w');
-  const added = layout.walls.map((w, i) => ({
-    id: `${stamp}${i}`,
-    ...(w.code ? { code: w.code } : {}),
-    name: w.name,
-    points: w.points,
-    ...(w.color ? { color: w.color } : {}),
-    ...(w.labelPos ? { labelPos: w.labelPos } : {}),
-    ...dates
-  }));
+  let added = 0;
+  const walls = pending.map(({ w, match }, i) => {
+    if (!match) added++;
+    return {
+      id: match ? match.id : `${stamp}${i}`,
+      ...(w.code ? { code: w.code } : {}),
+      name: w.name,
+      points: w.points,
+      ...(w.color ? { color: w.color } : {}),
+      ...(w.labelPos ? { labelPos: w.labelPos } : {}),
+      ...(match ? (match.addedOn ? { addedOn: match.addedOn } : {}) : dates)
+    };
+  });
 
   let nextGrades = gym.grades;
   if (layout.grades && layout.grades.length) {
@@ -418,14 +464,39 @@ export function importLayout(layout) {
   commitGym({
     ...gym,
     name: layout.name || null,
+    source: layout.source || null,
     cols: layout.cols,
     rows: layout.rows,
     outline: layout.outline || null,
     zones: layout.zones || null,
     grades: nextGrades,
-    walls: [...kept, ...added]
+    walls: [...kept, ...walls]
   });
-  return { previous, added: added.length, retired: retiring.length };
+  return { previous, added, reshaped, kept: matched.size, retired: retiring.length };
+}
+
+/**
+ * The built-in gym the current layout came from, when it has a newer revision.
+ * Returns { layout, added, reshaped, removed } or null. A layout loaded before revisions existed
+ * (no `source`) is matched by name and offered the update once.
+ */
+export function layoutUpdate(builtIns) {
+  const src = gym.source
+    ? builtIns.find((b) => b.id === gym.source.id)
+    : builtIns.find((b) => b.name && gym.name && b.name.toLowerCase() === gym.name.toLowerCase());
+  if (!src || !Number.isInteger(src.revision)) return null;
+  if (gym.source && gym.source.revision >= src.revision) return null;
+  const current = new Map(activeWalls().map((w) => [wallKey(w), w]));
+  const keys = new Set(src.walls.map(wallKey));
+  let added = 0;
+  let reshaped = 0;
+  for (const w of src.walls) {
+    const match = current.get(wallKey(w));
+    if (!match) added++;
+    else if (JSON.stringify(match.points) !== JSON.stringify(w.points)) reshaped++;
+  }
+  const removed = [...current.keys()].filter((k) => !keys.has(k)).length;
+  return { layout: src, added, reshaped, removed };
 }
 
 /** Undo of importLayout. Refused once boulders were logged on the uploaded walls. */
@@ -437,6 +508,7 @@ export function restoreLayout(previous) {
   commitGym({
     ...gym,
     name: previous.name,
+    source: previous.source || null,
     cols: previous.cols,
     rows: previous.rows,
     walls: previous.walls,
@@ -471,6 +543,18 @@ export function moveColour(kind, id, delta) {
   const j = i + delta;
   if (i === -1 || j < 0 || j >= list.length) return;
   [list[i], list[j]] = [list[j], list[i]];
+  commitGym({ ...gym, [kind]: list });
+}
+
+/** Moves a colour to `index` in one write (drag to reorder). */
+export function moveColourTo(kind, id, index) {
+  const list = [...gym[kind]];
+  const i = list.findIndex((c) => c.id === id);
+  if (i === -1) return;
+  const j = Math.max(0, Math.min(list.length - 1, index));
+  if (i === j) return;
+  const [c] = list.splice(i, 1);
+  list.splice(j, 0, c);
   commitGym({ ...gym, [kind]: list });
 }
 

@@ -96,3 +96,14 @@ export function summary(sends, grades) {
     hardest: hardest === null ? null : grades[hardest]
   };
 }
+
+/** Axis scale with whole-number ticks: the smallest 1/2/5 step that needs at most 5 ticks. */
+export function niceScale(n) {
+  for (let mag = 1; ; mag *= 10) {
+    for (const m of [1, 2, 5]) {
+      const step = m * mag;
+      const ticks = Math.max(2, Math.ceil(n / step));
+      if (ticks <= 5) return { max: ticks * step, ticks };
+    }
+  }
+}

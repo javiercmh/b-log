@@ -25,20 +25,22 @@
     </header>
 
     <div id="climb-empty" class="card empty" hidden>
-      <h2 id="climb-empty-title">Load your gym first</h2>
-      <p class="muted" id="climb-empty-text">Choose a built-in gym or upload a layout file in Setup. Then tap a wall here to log a boulder.</p>
+      <h2>Load your gym first</h2>
+      <p class="muted">Choose a built-in gym or upload a layout file in Setup. Then tap a wall here to log a boulder.</p>
       <button id="go-setup" class="btn primary">Open Setup</button>
     </div>
 
     <div id="climb-main">
+      <!-- Each colour shows how many boulders of it were topped on the shown day. -->
       <div class="palette" id="palette" role="radiogroup" aria-label="Colour to log"></div>
+      <div id="day-stats" class="day-stats"></div>
       <div class="card map-card">
         <div id="climb-map" class="map-host"></div>
         <div id="climb-legend" class="map-legend" hidden></div>
       </div>
       <p class="muted center" id="climb-hint">Tap a wall to log a <strong id="hint-grade"></strong> boulder. Tap a pin to edit it.</p>
 
-      <div class="card">
+      <div class="card" id="summary-card">
         <div class="row-between">
           <h2 id="summary-title">Today</h2>
           <span class="legend-inline" aria-hidden="true"><i class="sym sym-flash"></i>flash <i class="sym sym-sent"></i>sent <i class="sym sym-tried"></i>tried</span>
@@ -58,6 +60,7 @@
       </div>
     </header>
 
+    <p class="muted caption" id="tiles-caption"></p>
     <div class="tiles" id="tiles"></div>
 
     <div class="card">
@@ -70,41 +73,113 @@
       <div id="chart-legend" class="chart-legend"></div>
       <div id="chart-table" class="chart-table" hidden></div>
     </div>
-  </section>
-
-  <!-- ===== Setup ===== -->
-  <section id="pane-setup" class="pane" aria-label="Setup">
-    <header class="topbar"><h1>Setup</h1></header>
 
     <div class="card">
       <div class="row-between">
-        <h2>Gym layout</h2>
-        <span class="chip" id="grid-size-chip"></span>
+        <h2>Tops by colour</h2>
+        <span class="legend-inline"><i class="gb-key"></i>flashed</span>
       </div>
-      <input id="gym-name" class="field" maxlength="60" placeholder="Gym name, e.g. Rocktown" autocomplete="off" aria-label="Gym name">
-      <p class="muted">Upload a JSON layout (for example, designed with AI) or load a built-in gym. Replacing the layout keeps any walls you logged boulders on in your history.</p>
-      <div class="row">
-        <button id="layout-upload" class="btn primary">Upload</button>
-        <button id="layout-save" class="btn ghost">Save file</button>
-        <button id="layout-share" class="btn ghost">Share</button>
+      <div id="grade-bars" class="grade-bars"></div>
+    </div>
+  </section>
+
+  <!-- ===== Setup: a list of rows, each opening a sub-page ===== -->
+  <section id="pane-setup" class="pane" aria-label="Setup">
+    <div id="setup-home" class="col">
+      <header class="topbar"><h1>Setup</h1></header>
+
+      <p class="section-label">Your gym</p>
+      <div class="card set-group">
+        <div class="set-head">
+          <input id="gym-name" class="field field-big" maxlength="60" placeholder="Gym name" autocomplete="off" aria-label="Gym name">
+          <p class="gym-meta" id="gym-meta"></p>
+        </div>
+        <div id="update-slot"></div>
+        <button class="set-row" data-page="walls">
+          <span class="set-ico" aria-hidden="true">▦</span>
+          <span class="set-main"><span class="set-title">Map &amp; walls</span><span class="set-sub" id="row-walls"></span></span>
+          <span class="set-chev" aria-hidden="true">›</span>
+        </button>
+        <button class="set-row" data-page="grades">
+          <span class="set-ico" aria-hidden="true">◐</span>
+          <span class="set-main"><span class="set-title">Difficulty colours</span><span class="set-sub" id="row-grades"></span></span>
+          <span class="set-chev" aria-hidden="true">›</span>
+        </button>
+        <button class="set-row" data-page="gyms">
+          <span class="set-ico" aria-hidden="true">⇄</span>
+          <span class="set-main"><span class="set-title">Switch or upload gym</span><span class="set-sub">Built-in gyms, layout files</span></span>
+          <span class="set-chev" aria-hidden="true">›</span>
+        </button>
       </div>
-      <input id="layout-file" type="file" accept="application/json,.json" hidden>
-      <p class="sheet-label">Built-in gyms</p>
-      <ul id="builtin-gyms" class="builtin-list"></ul>
-      <div class="map-host" id="setup-map"></div>
-      <div id="setup-legend" class="map-legend" hidden></div>
+
+      <p class="section-label">All gyms</p>
+      <div class="card set-group">
+        <button class="set-row" data-page="holds">
+          <span class="set-ico" aria-hidden="true">●</span>
+          <span class="set-main"><span class="set-title">Hold colours</span><span class="set-sub" id="row-holds"></span></span>
+          <span class="set-chev" aria-hidden="true">›</span>
+        </button>
+      </div>
+
+      <p class="section-label">App</p>
+      <div class="card set-group">
+        <button class="set-row" data-page="app">
+          <span class="set-ico" aria-hidden="true">⚙&#xFE0E;</span>
+          <span class="set-main"><span class="set-title">App settings</span><span class="set-sub" id="row-app"></span></span>
+          <span class="set-chev" aria-hidden="true">›</span>
+        </button>
+      </div>
     </div>
 
-    <div class="card">
-      <h2>Difficulty colours <span class="muted">hardest → easiest</span></h2>
-      <ul id="grade-list" class="grade-list"></ul>
-      <button id="grade-add" class="btn ghost">+ Colour</button>
-    </div>
+    <div id="setup-page" class="col" hidden>
+      <div class="sub-head">
+        <button id="setup-back" class="link-btn back">‹ Setup</button>
+        <h2 id="sub-title"></h2>
+        <span class="muted" id="sub-context"></span>
+      </div>
 
-    <div class="card">
-      <h2>Hold colours</h2>
-      <ul id="hold-list" class="grade-list"></ul>
-      <button id="hold-add" class="btn ghost">+ Hold colour</button>
+      <div class="card" data-page="walls" hidden>
+        <div class="map-host" id="setup-map"></div>
+        <div id="setup-legend" class="map-legend" hidden></div>
+      </div>
+
+      <div class="card" data-page="grades" hidden>
+        <p class="muted">Drag <span aria-hidden="true">⠿</span> to reorder. The top colour is the hardest.</p>
+        <div class="grade-scale">
+          <div class="scale-rail" aria-hidden="true"><span>Hard</span><i></i><span>Easy</span></div>
+          <ul id="grade-list" class="drag-list" aria-label="Difficulty colours, hardest first"></ul>
+        </div>
+        <button id="grade-add" class="btn ghost">+ Colour</button>
+      </div>
+
+      <div class="card" data-page="gyms" hidden>
+        <p class="sheet-label">Built-in gyms</p>
+        <ul id="builtin-gyms" class="builtin-list"></ul>
+        <p class="sheet-label">Layout file</p>
+        <p class="muted">Layouts are JSON files. Upload one (for example, designed with AI) or save this gym's layout to share it. Walls you logged on stay in your history.</p>
+        <div class="row row-actions">
+          <button id="layout-upload" class="btn ghost">↑ Upload</button>
+          <button id="layout-save" class="btn ghost">↓ Save file</button>
+          <button id="layout-share" class="btn ghost">↗ Share</button>
+        </div>
+        <input id="layout-file" type="file" accept="application/json,.json" hidden>
+      </div>
+
+      <div class="card" data-page="holds" hidden>
+        <p class="muted">Drag <span aria-hidden="true">⠿</span> to reorder. This is the order of the swatches when you log a boulder.</p>
+        <ul id="hold-list" class="drag-list" aria-label="Hold colours"></ul>
+        <button id="hold-add" class="btn ghost">+ Hold colour</button>
+      </div>
+
+      <div class="card" data-page="app" hidden>
+        <p class="sheet-label">Appearance</p>
+        <div class="segmented wide" id="theme-picker" role="radiogroup" aria-label="Appearance">
+          <button class="seg" data-theme-choice="system" role="radio">System</button>
+          <button class="seg" data-theme-choice="light" role="radio">Light</button>
+          <button class="seg" data-theme-choice="dark" role="radio">Dark</button>
+        </div>
+        <p class="muted">System follows your phone's light or dark mode.</p>
+      </div>
     </div>
   </section>
 
@@ -112,21 +187,22 @@
   <dialog id="sheet" class="sheet">
     <form method="dialog" class="sheet-body" id="sheet-form">
       <div class="row-between">
-        <h2 id="sheet-title"></h2>
+        <h2 id="sheet-title" tabindex="-1" autofocus></h2>
         <button value="cancel" class="icon-btn" aria-label="Close">✕</button>
       </div>
-      <div id="sheet-grade-block" class="col tight" hidden>
+      <div class="col tight">
         <span class="sheet-label">Difficulty</span>
-        <div id="sheet-colors" class="palette" role="radiogroup" aria-label="Difficulty colour"></div>
+        <div id="sheet-colors" class="swatch-grid" role="radiogroup" aria-label="Difficulty colour"></div>
       </div>
       <div class="col tight">
         <span class="sheet-label">Holds <span class="muted">optional</span></span>
-        <div id="sheet-holds" class="palette" role="radiogroup" aria-label="Hold colour"></div>
+        <div id="sheet-holds" class="swatch-grid" role="radiogroup" aria-label="Hold colour"></div>
       </div>
+      <!-- Each button previews the pin it will drop: ring = difficulty, centre = holds. -->
       <div class="results" id="sheet-results">
-        <button type="button" class="result" data-result="flash"><i class="sym sym-flash"></i>Flash</button>
-        <button type="button" class="result" data-result="sent"><i class="sym sym-sent"></i>Sent</button>
-        <button type="button" class="result" data-result="tried"><i class="sym sym-tried"></i>Tried</button>
+        <button type="button" class="result" data-result="flash"><span class="result-pin"></span><span>Flash<small>first try</small></span></button>
+        <button type="button" class="result" data-result="sent"><span class="result-pin"></span><span>Sent<small>topped it</small></span></button>
+        <button type="button" class="result" data-result="tried"><span class="result-pin"></span><span>Tried<small>no top</small></span></button>
       </div>
       <div class="row" id="sheet-edit-actions" hidden>
         <button type="button" id="sheet-delete" class="btn danger">Delete</button>
@@ -141,9 +217,15 @@
   </div>
 
   <nav class="tabbar">
-    <button class="tab active" data-pane="climb"><span aria-hidden="true">🧗</span>Climb</button>
-    <button class="tab" data-pane="progress"><span aria-hidden="true">📈</span>Progress</button>
-    <button class="tab" data-pane="setup"><span aria-hidden="true">🛠</span>Setup</button>
+    <button class="tab active" data-pane="climb">
+      <i class="tab-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 20h18M5 20 9.5 6.5h5L19 20"/><circle cx="11" cy="10.5" r="1.1" class="f"/><circle cx="13.6" cy="13.8" r="1.1" class="f"/><circle cx="10.4" cy="16.8" r="1.1" class="f"/></svg></i>Climb
+    </button>
+    <button class="tab" data-pane="progress">
+      <i class="tab-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 20V12M10 20V6M15 20v-9M20 20V9"/></svg></i>Progress
+    </button>
+    <button class="tab" data-pane="setup">
+      <i class="tab-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 6.5 9 4l6 2.5L21 4v13.5L15 20l-6-2.5L3 20Z"/><path d="M9 4v13.5M15 6.5V20"/></svg></i>Setup
+    </button>
   </nav>
 
   <script type="module" src="js/app.js"></script>

@@ -3,7 +3,7 @@
 // legend, per-bar details and the table view always carry the grade names as well.
 
 import * as store from './store.js';
-import { topBuckets, summary, localIso, parseIso, weekStart, monthStart } from './stats.js';
+import { topBuckets, summary, gradeCounts, niceScale, localIso, parseIso, addDays, weekStart, monthStart } from './stats.js';
 import { $, h } from './dom.js';
 
 const NS = 'http://www.w3.org/2000/svg';
@@ -48,10 +48,12 @@ function bucketLabel(start, long = false) {
     : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 }
 
-function niceMax(n) {
-  if (n <= 4) return 4;
-  const step = n <= 10 ? 2 : n <= 25 ? 5 : n <= 50 ? 10 : Math.ceil(n / 50) * 10;
-  return Math.ceil(n / step) * step;
+/** Start of the period `count` periods before `start`. */
+function periodsBefore(start, count) {
+  if (period !== 'month') return addDays(start, -7 * count);
+  const d = parseIso(start);
+  d.setMonth(d.getMonth() - count);
+  return localIso(d);
 }
 
 export function render() {
@@ -59,31 +61,63 @@ export function render() {
   const grades = store.gym.grades;
   const buckets = topBuckets(store.sends, period, COUNT, today);
   const from = buckets[0].start;
-  const inRange = store.sends.filter((s) => (period === 'month' ? monthStart(s.date) : weekStart(s.date)) >= from);
+  const keyOf = period === 'month' ? monthStart : weekStart;
+  const inRange = store.sends.filter((s) => keyOf(s.date) >= from);
+  const prevFrom = periodsBefore(from, COUNT);
+  const before = store.sends.filter((s) => keyOf(s.date) >= prevFrom && keyOf(s.date) < from);
 
   $('chart-title').textContent = period === 'month' ? 'Tops per month' : 'Tops per week';
-  renderTiles(summary(inRange, grades));
+  $('tiles-caption').textContent = period === 'month'
+    ? 'Last 12 months, compared with the 12 before'
+    : 'Last 12 weeks, compared with the 12 before';
+  renderTiles(summary(inRange, grades), summary(before, grades));
+  renderGradeBars(inRange, grades);
   renderChart(buckets, grades);
   renderLegend(buckets, grades);
   renderTable(buckets, grades);
 }
 
-function renderTiles(s) {
-  const span = period === 'month' ? 'last 12 months' : 'last 12 weeks';
-  const tile = (label, value, extra = null, small = false) =>
+function renderTiles(now, before) {
+  const delta = (a, b) => {
+    const d = a - b;
+    return h('span', { class: `delta ${d > 0 ? 'up' : d < 0 ? 'down' : ''}`, text: d === 0 ? '±0' : `${d > 0 ? '▲' : '▼'} ${Math.abs(d)}` });
+  };
+  const tile = (label, value, foot, lead = null, small = false) =>
     h('div', { class: 'tile' }, h('div', { class: 'label', text: label }),
-      h('div', { class: small ? 'value small' : 'value' }, extra, value));
+      h('div', { class: small ? 'value small' : 'value' }, lead, value), foot);
+  const hard = now.hardest;
+  const wasHard = before.hardest && (!hard || before.hardest.id !== hard.id)
+    ? h('span', { class: 'delta', text: `was ${before.hardest.name}` }) : null;
   $('tiles').replaceChildren(
-    tile(`Sessions · ${span}`, String(s.sessions)),
-    tile('Tops', String(s.tops)),
-    tile('Flashes', String(s.flashes)),
-    s.hardest
-      ? tile('Hardest top', s.hardest.name, h('span', { class: 'dot', style: `background:${s.hardest.color}` }), true)
-      : tile('Hardest top', '—', null, true));
+    tile('Sessions', String(now.sessions), delta(now.sessions, before.sessions)),
+    tile('Tops', String(now.tops), delta(now.tops, before.tops)),
+    tile('Flash rate', now.tops ? `${Math.round((100 * now.flashes) / now.tops)}%` : '—',
+      h('span', { class: 'delta', text: `${now.flashes} flash${now.flashes === 1 ? '' : 'es'}` })),
+    tile('Hardest top', hard ? hard.name : '—', wasHard,
+      hard ? h('span', { class: 'gpill', style: `background:${hard.color}` }) : null, true));
+}
+
+/** Tops per colour, hardest first; the solid part of each bar is the flashes. */
+function renderGradeBars(sends, grades) {
+  const rows = gradeCounts(sends, grades).filter((r) => r.flash + r.sent).reverse();
+  if (!rows.length) {
+    $('grade-bars').replaceChildren(h('p', { class: 'muted', text: 'No tops in this range yet.' }));
+    return;
+  }
+  const max = Math.max(...rows.map((r) => r.flash + r.sent));
+  $('grade-bars').replaceChildren(...rows.map((r) => {
+    const tops = r.flash + r.sent;
+    return h('div', { class: 'gb-row', 'aria-label': `${r.grade.name}: ${tops} tops, ${r.flash} flashed` },
+      h('span', { class: 'gb-name' }, h('i', { class: 'dot', style: `background:${r.grade.color}` }), r.grade.name),
+      h('span', { class: 'gb-track' },
+        h('span', { class: 'gb-bar', style: `width:${(100 * tops) / max}%;--g:${r.grade.color}` },
+          h('span', { class: 'gb-flash', style: `width:${(100 * r.flash) / tops}%` }))),
+      h('span', { class: 'gb-n', text: String(tops) }));
+  }));
 }
 
 function renderChart(buckets, grades) {
-  const max = niceMax(Math.max(0, ...buckets.map((b) => b.total)));
+  const { max, ticks } = niceScale(Math.max(0, ...buckets.map((b) => b.total)));
   const plotW = W - M.left - M.right;
   const plotH = H - M.top - M.bottom;
   const slot = plotW / buckets.length;
@@ -92,7 +126,6 @@ function renderChart(buckets, grades) {
 
   const root = svg('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': $('chart-title').textContent });
   const axis = svg('g', { class: 'axis' }, root);
-  const ticks = 4;
   for (let i = 0; i <= ticks; i++) {
     const v = (max / ticks) * i;
     svg('line', { class: 'gridline', x1: M.left, x2: W - M.right, y1: y(v), y2: y(v) }, axis);
@@ -122,7 +155,7 @@ function renderChart(buckets, grades) {
         if (!n) continue;
         const top = y(acc + n);
         const bottom = y(acc);
-        svg('rect', { x: cx - barW / 2, y: top, width: barW, height: bottom - top, fill: g.color }, stack);
+        svg('rect', { class: 'bar-seg', x: cx - barW / 2, y: top, width: barW, height: bottom - top, fill: g.color }, stack);
         // 2px surface gap between stacked segments.
         if (acc > 0) svg('rect', { x: cx - barW / 2, y: bottom - 1, width: barW, height: 2, fill: 'var(--surface)' }, stack);
         acc += n;

@@ -1,10 +1,10 @@
 // climb.js — the Climb screen: day switcher, colour palette, map logging and the day summary.
 
 import * as store from './store.js';
-import { createMap, PIN_R, mapScale, renderMapLegend } from './map.js';
+import { createMap, PIN_R, mapScale, renderMapLegend, pinIcon } from './map.js';
 import { snapToWall, nearestPoint, wallExtent } from './geometry.js';
 import { gradeCounts, localIso, addDays, parseIso } from './stats.js';
-import { $, h, toast, attempt, swatch } from './dom.js';
+import { $, h, toast, attempt, namedSwatch } from './dom.js';
 
 const SNAP_DIST = 1.1;   // grid units: how far from a wall a tap still counts
 const PIN_HIT = PIN_R + 0.35;
@@ -13,7 +13,8 @@ const RESULT_WORD = { flash: 'flashed', sent: 'sent', tried: 'tried' };
 let day = localIso();
 let followToday = true;  // keeps showing "today" when the app is reopened on a later day
 let map = null;
-let sheet = null;        // { mode: 'log', spot } | { mode: 'edit', send, gradeId, result }
+let shownPins = [];      // the shown day's sends at the spot they are drawn (for the pin hit test)
+let sheet = null;        // { mode: 'log', spot, grade, holdId } | { mode: 'edit', send, gradeId, holdId, result }
 
 export function init() {
   map = createMap($('climb-map'), handleTap);
@@ -53,6 +54,20 @@ function dayLabel(iso) {
   return parseIso(iso).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
 }
 
+/**
+ * Where each send is drawn. A send keeps the spot that was tapped, but when its wall was later
+ * reshaped (a new layout revision) that spot can lie off the line, so it is drawn snapped onto the
+ * wall's current shape. The saved x/y never change.
+ */
+function pinSpots(daySends, walls) {
+  const byId = new Map(walls.map((w) => [w.id, w]));
+  return daySends.map((s) => {
+    const w = byId.get(s.wallId);
+    const spot = w ? snapToWall([s.x, s.y], [w], Infinity) : null;
+    return { send: s, x: spot ? spot.x : s.x, y: spot ? spot.y : s.y };
+  });
+}
+
 export function render() {
   const today = localIso();
   $('day-text').textContent = dayLabel(day);
@@ -64,37 +79,35 @@ export function render() {
   const hasWalls = dayWalls.length > 0 || store.activeWalls().length > 0;
   $('climb-empty').hidden = hasWalls;
   $('climb-main').hidden = !hasWalls;
-  if (!hasWalls) {
-    const outline = Boolean(store.gym.outline);
-    $('climb-empty-title').textContent = outline ? 'Now add the walls' : 'Draw your gym first';
-    $('climb-empty-text').textContent = outline
-      ? 'The building outline is ready. Draw the climbing walls in Setup with + Wall, then tap a wall here to log a boulder.'
-      : 'Add the walls of your gym in Setup. Then tap a wall here to log a boulder.';
-    return;
-  }
-
-  const selected = store.selectedGrade();
-  $('palette').replaceChildren(...store.gym.grades.map((g) =>
-    swatch(g, selected && g.id === selected.id, () => {
-      if (attempt(() => store.selectGrade(g.id))) render();
-    })));
-  $('hint-grade').textContent = selected ? selected.name.toLowerCase() : '…';
+  if (!hasWalls) return;
 
   const daySends = store.sendsOn(day);
+  const counts = new Map(gradeCounts(daySends, store.gym.grades).map((r) => [r.grade.id, r]));
+  const selected = store.selectedGrade();
+  $('palette').replaceChildren(...store.gym.grades.map((g) => {
+    const r = counts.get(g.id);
+    return namedSwatch(g, Boolean(selected && g.id === selected.id), () => {
+      if (attempt(() => store.selectGrade(g.id))) render();
+    }, r ? r.flash + r.sent : 0);
+  }));
+  $('hint-grade').textContent = selected ? selected.name.toLowerCase() : '…';
+  renderDayStats(daySends);
+
   // Walls of an older layout can reach past the current grid.
   const ext = wallExtent([...dayWalls, { points: store.gym.outline || [] }]);
+  shownPins = pinSpots(daySends, dayWalls);
   map.render({
     cols: Math.max(store.gym.cols, ext.cols),
     rows: Math.max(store.gym.rows, ext.rows),
     outline: store.gym.outline,
     zones: store.gym.zones,
     walls: dayWalls,
-    pins: daySends.map((s) => ({
-      x: s.x,
-      y: s.y,
-      result: s.result,
-      ring: store.grade(s.gradeId)?.color || '#888888',
-      fill: store.hold(s.holdId)?.color || null
+    pins: shownPins.map(({ send, x, y }) => ({
+      x,
+      y,
+      result: send.result,
+      ring: store.grade(send.gradeId)?.color || '#888888',
+      fill: store.hold(send.holdId)?.color || null
     })),
     preview: sheet?.mode === 'log'
       ? { ...sheet.spot, ring: sheet.grade.color, fill: store.hold(sheet.holdId)?.color || null }
@@ -104,6 +117,20 @@ export function render() {
   renderMapLegend($('climb-legend'), { walls: dayWalls, zones: store.gym.zones });
 
   renderSummary(daySends);
+}
+
+/** One line under the palette: tops, flashes and tries of the shown day. */
+function renderDayStats(daySends) {
+  const tops = daySends.filter((s) => s.result !== 'tried').length;
+  const flashes = daySends.filter((s) => s.result === 'flash').length;
+  const tried = daySends.length - tops;
+  $('day-stats').replaceChildren(
+    h('span', {}, h('b', { text: String(tops) }), ` top${tops === 1 ? '' : 's'}`),
+    h('span', {}, h('i', { class: 'sym sym-flash' }), h('b', { text: String(flashes) }), ' flash'),
+    h('span', {}, h('i', { class: 'sym sym-tried' }), h('b', { text: String(tried) }), ' tried'),
+    daySends.length
+      ? h('button', { class: 'link-btn', text: 'Details', onclick: () => $('summary-card').scrollIntoView({ behavior: 'smooth', block: 'center' }) })
+      : null);
 }
 
 function renderSummary(daySends) {
@@ -135,9 +162,8 @@ function renderSummary(daySends) {
 function handleTap(p) {
   if (sheet) return;
   const s = mapScale(store.gym.cols);
-  const daySends = store.sendsOn(day);
-  const pin = nearestPoint(p, [...daySends].reverse(), PIN_HIT * s);
-  if (pin) { openEdit(pin); return; }
+  const pin = nearestPoint(p, [...shownPins].reverse(), PIN_HIT * s);
+  if (pin) { openEdit(pin.send); return; }
 
   const spot = snapToWall(p, store.wallsOn(day), SNAP_DIST * s);
   if (!spot) { toast('Tap closer to a wall.'); return; }
@@ -146,10 +172,13 @@ function handleTap(p) {
   openLog(spot, grade);
 }
 
+function sheetTitle(kicker, wallId) {
+  $('sheet-title').replaceChildren(h('span', { class: 'sheet-kicker', text: kicker }), store.wall(wallId)?.name || 'Wall');
+}
+
 function openLog(spot, grade) {
   sheet = { mode: 'log', spot, grade, holdId: null };
-  $('sheet-title').textContent = `${grade.name} on ${store.wall(spot.wallId)?.name || 'wall'}`;
-  $('sheet-grade-block').hidden = true;
+  sheetTitle('Log a boulder', spot.wallId);
   $('sheet-edit-actions').hidden = true;
   renderSheetColours();
   setPressed(null);
@@ -159,26 +188,35 @@ function openLog(spot, grade) {
 
 function openEdit(send) {
   sheet = { mode: 'edit', send, gradeId: send.gradeId, holdId: send.holdId || null, result: send.result };
-  $('sheet-title').textContent = `Edit · ${store.wall(send.wallId)?.name || 'wall'}`;
-  $('sheet-grade-block').hidden = false;
+  sheetTitle('Edit boulder', send.wallId);
   $('sheet-edit-actions').hidden = false;
   renderSheetColours();
   setPressed(send.result);
   $('sheet').showModal();
 }
 
-/** Difficulty swatches (edit only) and hold swatches. Tapping the chosen hold again clears it. */
+/**
+ * Difficulty and hold swatches, and the pin each outcome button would drop.
+ * Changing the difficulty here applies to this boulder only. Tapping the chosen hold again clears it.
+ */
 function renderSheetColours() {
-  if (sheet.mode === 'edit') {
-    $('sheet-colors').replaceChildren(...store.gym.grades.map((g) =>
-      swatch(g, g.id === sheet.gradeId, () => { sheet.gradeId = g.id; renderSheetColours(); })));
+  const gradeId = sheet.mode === 'edit' ? sheet.gradeId : sheet.grade.id;
+  $('sheet-colors').replaceChildren(...store.gym.grades.map((g) => namedSwatch(g, g.id === gradeId, () => {
+    if (sheet.mode === 'edit') sheet.gradeId = g.id;
+    else sheet.grade = g;
+    renderSheetColours();
+    if (sheet.mode === 'log') render();
+  })));
+  $('sheet-holds').replaceChildren(...store.gym.holds.map((c) => namedSwatch(c, c.id === sheet.holdId, () => {
+    sheet.holdId = sheet.holdId === c.id ? null : c.id;
+    renderSheetColours();
+    if (sheet.mode === 'log') render();
+  })));
+  const ring = store.grade(gradeId)?.color || '#888888';
+  const fill = store.hold(sheet.holdId)?.color || null;
+  for (const b of $('sheet-results').querySelectorAll('.result')) {
+    b.querySelector('.result-pin').replaceChildren(pinIcon({ ring, fill, result: b.dataset.result }));
   }
-  $('sheet-holds').replaceChildren(...store.gym.holds.map((c) =>
-    swatch(c, c.id === sheet.holdId, () => {
-      sheet.holdId = sheet.holdId === c.id ? null : c.id;
-      renderSheetColours();
-      if (sheet.mode === 'log') render();
-    })));
 }
 
 function setPressed(result) {

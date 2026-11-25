@@ -231,3 +231,80 @@ test('importing a layout with grades reuses matching IDs, preserves used grades,
   store.restoreLayout(r.previous);
   assert.ok(store.gym.grades.some((g) => g.id === 'g_yellow'));
 });
+
+// --- Layout revisions and wall identity ---
+
+const rev = (revision, walls, extra = {}) => ({ format: 'b-log-layout', version: 1, id: 'testgym', revision,
+  name: 'Test Gym', cols: 20, rows: 20, walls, ...extra });
+
+test('a new revision of the same gym keeps reshaped walls, adds new ones and retires removed ones', () => {
+  store.importLayout(store.parseLayout(JSON.stringify(rev(1, [
+    { code: 'A', name: 'Slab', points: [[1, 1], [5, 1]] },
+    { code: 'B', name: 'Cave', points: [[1, 5], [5, 5]] },
+    { code: 'C', name: 'Roof', points: [[1, 9], [5, 9]] }
+  ]))));
+  assert.deepEqual(store.gym.source, { id: 'testgym', revision: 1 });
+  const [a, b, c] = store.activeWalls();
+  store.addSend({ date: localIso(), gradeId: 'g_red', wallId: a.id, x: 2, y: 1, result: 'sent' });
+  store.addSend({ date: localIso(), gradeId: 'g_red', wallId: b.id, x: 2, y: 5, result: 'sent' });
+
+  const next = rev(2, [
+    { code: 'A', name: 'Slab', points: [[1, 1], [6, 2]] },   // reshaped
+    { code: 'C', name: 'Big Roof', points: [[1, 9], [5, 9]] }, // renamed, same code
+    { code: 'D', name: 'Prow', points: [[9, 9], [9, 14]] }     // new
+  ]);
+  assert.deepEqual(
+    (({ added, reshaped, removed }) => ({ added, reshaped, removed }))(store.layoutUpdate([next])),
+    { added: 1, reshaped: 1, removed: 1 });
+
+  const r = store.importLayout(store.parseLayout(JSON.stringify(next)));
+  assert.deepEqual({ added: r.added, reshaped: r.reshaped, retired: r.retired }, { added: 1, reshaped: 1, retired: 1 });
+  assert.equal(store.wall(a.id).points[1][0], 6);
+  assert.equal(store.wall(a.id).removedOn, undefined);
+  assert.equal(store.wall(b.id).removedOn, localIso());
+  assert.equal(store.wall(c.id).name, 'Big Roof');
+  assert.equal(store.layoutUpdate([next]), null);
+  store.restoreLayout(r.previous);
+  assert.deepEqual(store.wall(a.id).points, [[1, 1], [5, 1]]);
+  assert.deepEqual(store.gym.source, { id: 'testgym', revision: 1 });
+});
+
+test('a different gym never matches walls by code', () => {
+  store.importLayout(store.parseLayout(JSON.stringify(rev(1, [{ code: 'W1', name: 'Slab', points: [[1, 1], [5, 1]] }]))));
+  const w = store.activeWalls()[0];
+  store.addSend({ date: localIso(), gradeId: 'g_red', wallId: w.id, x: 2, y: 1, result: 'sent' });
+  const other = { cols: 20, rows: 20, name: 'Other Gym', walls: [{ code: 'W1', name: 'Slab', points: [[1, 1], [5, 1]] }] };
+  const r = store.importLayout(store.parseLayout(JSON.stringify(other)));
+  assert.equal(r.retired, 1);
+  assert.equal(store.wall(w.id).removedOn, localIso());
+  assert.equal(store.gym.source, null);
+});
+
+test('a layout loaded before revisions existed is offered the built-in update once', () => {
+  store.importLayout(store.parseLayout(JSON.stringify({ cols: 20, rows: 20, name: 'Test Gym', walls: [{ code: 'A', name: 'Slab', points: [[1, 1], [5, 1]] }] })));
+  assert.equal(store.gym.source, null);
+  const next = rev(3, [{ code: 'A', name: 'Slab', points: [[1, 1], [5, 1]] }]);
+  assert.ok(store.layoutUpdate([next]));
+  store.importLayout(store.parseLayout(JSON.stringify(next)));
+  assert.equal(store.layoutUpdate([next]), null);
+});
+
+test('colours move to a position in one write', () => {
+  store.moveColourTo('grades', 'g_yellow', 3);
+  assert.deepEqual(store.gym.grades.map((g) => g.id), ['g_green', 'g_blue', 'g_red', 'g_yellow', 'g_black']);
+  store.load();
+  assert.equal(store.gym.grades[3].id, 'g_yellow');
+  store.moveColourTo('holds', 'h_brown', 0);
+  assert.equal(store.gym.holds[0].id, 'h_brown');
+});
+
+test('the theme setting persists and rejects unknown values', () => {
+  assert.equal(store.settings.theme, 'system');
+  store.setTheme('dark');
+  store.load();
+  assert.equal(store.settings.theme, 'dark');
+  assert.throws(() => store.setTheme('neon'));
+  files.set(store.FILES.settings, JSON.stringify({ version: 1, theme: 'neon' }));
+  store.load();
+  assert.equal(store.settings.theme, 'system');
+});

@@ -1,23 +1,16 @@
 // map.js — renders the gym floor plan as SVG in grid units, converts taps to grid points,
-// and renders the colour-coded zone & wall legend. Pure presentation: never reads the store.
+// and renders the zone & wall legend. Pure presentation: never reads the store.
+//
+// The floor and walls are neutral on purpose: colour on the map only ever means a logged boulder
+// (ring = difficulty, centre = holds), so a red pin never disappears against a red wall.
 
 import { polylineMidpoint } from './geometry.js';
 import { h } from './dom.js';
 
 const NS = 'http://www.w3.org/2000/svg';
 const PAD = 0.6;
-export const PIN_R = 0.34;
+export const PIN_R = 0.5;
 export const mapScale = (cols) => Math.max(1, cols / 13);
-
-const FALLBACK_COLORS = [
-  '#f97316', '#ef4444', '#eab308', '#f43f5e',
-  '#22c55e', '#06b6d4', '#3b82f6', '#a855f7',
-  '#38bdf8', '#fb923c', '#ec4899', '#14b8a6'
-];
-
-export function wallColor(wall, index = 0) {
-  return wall.color || FALLBACK_COLORS[index % FALLBACK_COLORS.length];
-}
 
 function el(name, attrs = {}, parent = null) {
   const node = document.createElementNS(NS, name);
@@ -75,80 +68,51 @@ export function createMap(host, onTap) {
       const zones = view.zones || [];
       if (zones.length) {
         const zg = el('g', { class: 'map-zones' }, svg);
-        for (const z of zones) drawZone(zg, z, s);
+        for (const z of zones) {
+          el('polygon', { class: `zone zone-${z.kind}`, points: z.points.map((p) => p.join(',')).join(' ') }, zg);
+        }
       }
 
-      // Subtle architectural grid lines
+      // A light grid for orientation: every 5 units (10 on wide gyms).
       const grid = el('g', { class: 'map-grid' }, svg);
-      const step = cols > 16 ? 2 : 1;
-      const majorStep = cols > 16 ? 10 : 5;
-      for (let x = 0; x <= cols; x += step) {
-        const major = x % majorStep === 0 || x === cols;
-        el('line', {
-          class: major ? 'grid-major' : 'grid-minor',
-          x1: x, y1: 0, x2: x, y2: rows
-        }, grid);
-      }
-      for (let y = 0; y <= rows; y += step) {
-        const major = y % majorStep === 0 || y === rows;
-        el('line', {
-          class: major ? 'grid-major' : 'grid-minor',
-          x1: 0, y1: y, x2: cols, y2: y
-        }, grid);
-      }
+      const major = cols > 16 ? 10 : 5;
+      for (let x = 0; x <= cols; x += major) el('line', { class: 'grid-major', x1: x, y1: 0, x2: x, y2: rows }, grid);
+      for (let y = 0; y <= rows; y += major) el('line', { class: 'grid-major', x1: 0, y1: y, x2: cols, y2: y }, grid);
 
-      // Zone labels above grid lines for crisp legibility
       if (zones.length) {
         const zlg = el('g', { class: 'map-zone-labels' }, svg);
         for (const z of zones) drawZoneLabel(zlg, z, s);
       }
 
-      // Colour-coded walls + corner nodes
       const wallsG = el('g', { class: 'map-walls' }, svg);
-      view.walls.forEach((w, i) => {
-        const color = wallColor(w, i);
-        const pts = w.points.map((p) => p.join(',')).join(' ');
+      for (const w of view.walls) {
         if (w.points.length === 1) {
-          el('circle', { class: 'wall-dot', cx: w.points[0][0], cy: w.points[0][1], r: 0.22 * s, fill: color }, wallsG);
+          el('circle', { class: 'wall-dot', cx: w.points[0][0], cy: w.points[0][1], r: 0.22 * s }, wallsG);
         } else {
-          el('polyline', { class: 'wall', points: pts, stroke: color }, wallsG);
-          for (const [x, y] of w.points) {
-            el('circle', { class: 'wall-joint', cx: x, cy: y, r: 0.14 * s, stroke: color }, wallsG);
-          }
+          el('polyline', { class: 'wall', points: w.points.map((p) => p.join(',')).join(' ') }, wallsG);
         }
-      });
+      }
 
       // Wall code / name pill badges
       const labels = el('g', { class: 'map-labels' }, svg);
-      view.walls.forEach((w, i) => {
+      for (const w of view.walls) {
         const tag = w.code || w.name;
-        if (!tag) return;
-        const color = wallColor(w, i);
+        if (!tag) continue;
         const pos = w.labelPos || (() => {
           const m = polylineMidpoint(w.points);
           return [m.x, m.y - 0.55 * s];
         })();
         const text = tag.length > 10 ? `${tag.slice(0, 9)}…` : tag;
-        const charW = 0.42 * s;
-        const pillW = Math.max(1.8 * s, text.length * charW + 0.7 * s);
-        const pillH = 1.05 * s;
+        const k = 0.78 * s;
+        const pillW = Math.max(1.8 * k, text.length * 0.42 * k + 0.7 * k);
+        const pillH = 1.05 * k;
         el('rect', {
-          class: 'wall-badge-bg',
-          x: pos[0] - pillW / 2,
-          y: pos[1] - pillH / 2,
-          width: pillW,
-          height: pillH,
-          rx: 0.26 * s,
-          fill: color
+          class: 'wall-badge-bg', x: pos[0] - pillW / 2, y: pos[1] - pillH / 2,
+          width: pillW, height: pillH, rx: pillH / 2
         }, labels);
-        const t = el('text', {
-          class: 'wall-badge-text',
-          x: pos[0],
-          y: pos[1] + 0.24 * s,
-          'text-anchor': 'middle'
-        }, labels);
+        const t = el('text', { class: 'wall-badge-text', x: pos[0], y: pos[1] + 0.24 * k, 'text-anchor': 'middle' }, labels);
         t.textContent = text;
-      });
+      }
 
       // Boulder pins on top of everything
       const pins = el('g', { class: 'map-pins' }, svg);
@@ -158,73 +122,60 @@ export function createMap(host, onTap) {
   };
 }
 
-function drawZone(parent, z, s) {
-  const pts = z.points.map((p) => p.join(',')).join(' ');
-  const attrs = { class: `zone zone-${z.kind}`, points: pts };
-  if (z.color) {
-    attrs.stroke = z.color;
-    attrs.fill = z.color;
-  }
-  el('polygon', attrs, parent);
-}
-
 function drawZoneLabel(parent, z, s) {
   if (!z.label) return;
   const [x, y] = z.labelPos || polyCenter(z.points);
-  const attrs = {
-    class: `zone-label zone-label-${z.kind}`,
-    x,
-    y: y + 0.22 * s,
-    'text-anchor': 'middle'
-  };
-  if (z.color) attrs.fill = z.color;
+  const attrs = { class: `zone-label zone-label-${z.kind}`, x, y: y + 0.2 * s, 'text-anchor': 'middle' };
   if (z.rotate) attrs.transform = `rotate(${z.rotate} ${x} ${y})`;
-  const t = el('text', attrs, parent);
-  t.textContent = z.label;
+  el('text', attrs, parent).textContent = z.label;
 }
 
 /**
  * Centre = hold colour (empty when none was recorded), ring = difficulty colour.
  * Shape carries the result so colour is never the only cue: solid ring = sent,
- * extra outer halo = flash, dashed ring = tried.
+ * extra outer halo = flash, dashed ring = tried. A light rim keeps pins readable on any floor.
  */
 function drawPin(parent, pin, s = 1) {
   const g = el('g', { class: `pin pin-${pin.result}` }, parent);
+  el('circle', { class: 'pin-rim', cx: pin.x, cy: pin.y + 0.06 * s, r: (PIN_R + (pin.result === 'flash' ? 0.3 : 0.12)) * s }, g);
   if (pin.result === 'flash') {
-    el('circle', { class: 'pin-halo', cx: pin.x, cy: pin.y, r: (PIN_R + 0.17) * s, stroke: pin.ring }, g);
+    el('circle', { class: 'pin-halo', cx: pin.x, cy: pin.y, r: (PIN_R + 0.24) * s, stroke: pin.ring }, g);
   }
   el('circle', {
-    class: 'pin-dot',
-    cx: pin.x,
-    cy: pin.y,
-    r: PIN_R * s,
-    fill: pin.fill || 'var(--surface-solid)',
-    stroke: pin.ring
+    class: 'pin-dot', cx: pin.x, cy: pin.y, r: PIN_R * s,
+    fill: pin.fill || 'var(--surface-solid)', stroke: pin.ring
   }, g);
 }
 
 /**
- * Renders the floor-zone key and colour-coded wall legend inside `host`.
+ * A pin as a small standalone SVG (the sheet's outcome buttons preview the pin they will drop).
+ */
+export function pinIcon({ ring, fill, result }) {
+  const svg = el('svg', { viewBox: '-1 -1 2 2', 'aria-hidden': 'true' });
+  if (result === 'flash') el('circle', { r: 0.86, fill: 'none', stroke: ring, 'stroke-width': 0.13 }, svg);
+  el('circle', {
+    r: 0.56, fill: fill || 'var(--surface-solid)', stroke: ring, 'stroke-width': 0.22,
+    ...(result === 'tried' ? { 'stroke-dasharray': '0.3 0.18' } : {})
+  }, svg);
+  return svg;
+}
+
+/**
+ * Renders the floor-zone key and the wall legend (code + name) inside `host`.
  */
 export function renderMapLegend(host, { walls = [], zones = [] }) {
   const parts = [];
   const kinds = new Set((zones || []).map((z) => z.kind));
-  if (kinds.size) {
-    const items = [];
-    if (kinds.has('mat')) items.push(h('span', { class: 'zone-key-item' }, h('i', { class: 'zone-swatch zone-swatch-mat' }), 'Mats'));
-    if (kinds.has('walkway')) items.push(h('span', { class: 'zone-key-item' }, h('i', { class: 'zone-swatch zone-swatch-walkway' }), 'Walking'));
-    if (kinds.has('floor')) items.push(h('span', { class: 'zone-key-item' }, h('i', { class: 'zone-swatch zone-swatch-floor' }), '2nd floor'));
-    if (kinds.has('area')) items.push(h('span', { class: 'zone-key-item' }, h('i', { class: 'zone-swatch zone-swatch-area' }), 'Areas'));
-    if (items.length) parts.push(h('div', { class: 'zone-key' }, ...items));
-  }
+  const KEY = [['mat', 'Mats'], ['walkway', 'Walking'], ['floor', '2nd floor'], ['area', 'Areas']];
+  const items = KEY.filter(([k]) => kinds.has(k)).map(([k, label]) =>
+    h('span', { class: 'zone-key-item' }, h('i', { class: `zone-swatch zone-swatch-${k}` }), label));
+  if (items.length) parts.push(h('div', { class: 'zone-key' }, ...items));
 
   if (walls.length) {
-    parts.push(h('ul', { class: 'wall-legend' }, ...walls.map((w, i) => {
-      const color = wallColor(w, i);
-      return h('li', { class: 'wall-legend-item' },
-        h('span', { class: 'wall-code-pill', style: `background:${color}`, text: w.code || `W${i + 1}` }),
-        h('span', { class: 'wall-legend-name', text: w.name }));
-    })));
+    parts.push(h('ul', { class: 'wall-legend' }, ...walls.map((w, i) =>
+      h('li', { class: 'wall-legend-item' },
+        h('span', { class: 'wall-code-pill', text: w.code || `W${i + 1}` }),
+        h('span', { class: 'wall-legend-name', text: w.name })))));
   }
 
   host.replaceChildren(...parts);

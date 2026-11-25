@@ -4,7 +4,7 @@ import * as store from './store.js';
 import * as climb from './climb.js';
 import * as progress from './progress.js';
 import * as setup from './setup.js';
-import { $ } from './dom.js';
+import { $, applyTheme } from './dom.js';
 
 const screens = { climb, progress, setup };
 let current = 'climb';
@@ -13,7 +13,8 @@ function show(name) {
   current = name;
   for (const tab of document.querySelectorAll('.tab')) tab.classList.toggle('active', tab.dataset.pane === name);
   for (const pane of document.querySelectorAll('.pane')) pane.classList.toggle('active', pane.id === `pane-${name}`);
-  screens[name].render();
+  if (name === 'setup') setup.openPage(null);
+  else screens[name].render();
   window.scrollTo(0, 0);
 }
 
@@ -26,6 +27,7 @@ function showDamaged() {
 }
 
 store.load();
+applyTheme(store.settings.theme);
 showDamaged();
 
 climb.init();
@@ -42,3 +44,4 @@ document.addEventListener('visibilitychange', () => {
 });
 
 show('climb');
+setup.render();   // shows the Setup tab's dot when a built-in gym has a newer layout

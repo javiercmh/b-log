@@ -13,13 +13,17 @@ over weeks and months.
 ## 1. Features & workflows
 
 - **Climb** (default tab)
-  - A palette of the gym's colours sits above the map. The selected colour is remembered
+  - A palette of the gym's colours (dot + name) sits above the map. Each colour carries a badge
+    with the number of tops of that colour on the shown day. The selected colour is remembered
     (`data/settings.json`) and stays selected until changed, so logging a run of reds is one
-    tap per boulder plus the outcome.
+    tap per boulder plus the outcome. Under the palette, one line counts the day's tops, flashes
+    and tries, with **Details** scrolling to the summary.
   - Tapping near a wall (within `SNAP_DIST` grid units) snaps the tap onto the wall and opens a
-    bottom sheet with the **hold colour** swatches (optional, nothing pre-selected because it
-    changes every route; tapping the chosen one again clears it) and **Flash / Sent / Tried**.
-    Choosing an outcome saves immediately and shows an Undo toast. A tap far from every wall
+    bottom sheet titled with the wall's name. It shows the **difficulty** (pre-selected from the
+    palette; changing it here applies to this boulder only), the **hold colour** (named swatches,
+    optional, nothing pre-selected because it changes every route; tapping the chosen one again
+    clears it) and **Flash / Sent / Tried**. Each outcome button previews the exact pin it will
+    drop. Choosing an outcome saves immediately and shows an Undo toast. A tap far from every wall
     only shows a hint.
   - The map shows **only the selected day's** sends. It opens on today, and a new day starts
     empty. `‹ ›` and the date picker change the day (never into the future); logging and
@@ -28,37 +32,57 @@ over weeks and months.
   - Tapping an existing pin opens the same sheet in edit mode: change difficulty colour, hold
     colour and outcome, then **Save**, or **Delete** (with Undo).
   - Pins: centre = hold colour (empty if none recorded), ring = difficulty colour. Solid ring =
-    sent, extra outer halo = flash, dashed ring = tried.
+    sent, extra outer halo = flash, dashed ring = tried. A light rim keeps pins readable.
+  - The floor, zones and walls are drawn **neutral** (grey walls, outlined code pills): colour on
+    the map only ever means a logged boulder, so a red pin never disappears on a red wall. Wall
+    `color` values in layout files are kept but not drawn.
+  - A pin is drawn snapped onto its wall's **current** shape (a reshaped wall in a new layout
+    revision); the send's saved `x`/`y` never change.
   - A summary below the map lists, per colour in grade order, the counts of flash / sent / tried
     for the shown day, plus total tops.
   - The map uses the full width; a long hall makes it taller than the screen and the page scrolls,
     while the colour palette stays pinned at the top. Lay a long gym out upright (long side
     vertical) so pins stay a usable size.
-- **Progress**: Weeks (last 12, Monday start) or Months (last 12). Tiles: sessions (days with
-  any logged boulder), tops, flashes, hardest colour topped (by grade order). A stacked bar chart
-  of tops per period, coloured by grade, with a legend, tap-for-details and a table view.
-- **Setup**
-  - **Gym layout**: maps are designed externally (e.g. with AI) as JSON layout files rather than
-    drawn manually in-app. Setup shows the **Gym name** field (up to 60 characters), **Upload /
-    Save file / Share** buttons, **Built-in gyms** (`Rocktown`), a read-only preview of the map
-    with floor zones (`mat`, `walkway`, `floor`, `area`), and the colour-coded wall legend.
-    Uploading replaces the name, grid, outline, zones and walls: walls with logged sends are
-    retired, unused ones dropped, and the new walls get `addedOn` = today. Undo is offered until a
-    boulder is logged on the new walls. A B-log `gym.json` is accepted as an upload too. Share is
-    hidden where `share.available` is false; Save falls back to a browser download in previews.
-  - **Built-in gyms**: a list under the layout buttons; **Load** works exactly like uploading that
-    layout (same replacement rules and Undo). The layouts live in `js/gyms.js` (an ES module, so
-    no fetch is needed); add a gym by appending its layout object there. Currently: Rocktown
-    (26 × 100 with 2nd floor above the 1st floor outline, mats, walkway, named areas, and
-    colour-coded walls).
-  - **Difficulty colours**: stored easiest → hardest, shown hardest → easiest in Setup (easiest at
-    the bottom, like most gyms), each with a name and a colour. Reorder with ↑ ↓. Layouts can
-    optionally include their own `grades` (easiest → hardest), which are applied on load while
-    reusing matching IDs and keeping any unlisted grades that have logged boulders.
-  - **Hold colours**: starts with 12 common hold colours; rename, recolour, reorder, add or
-    remove them. The order is the order of the swatches in the sheet.
+- **Progress**: Weeks (last 12, Monday start) or Months (last 12). Tiles compare the range with
+  the 12 periods before it: sessions (days with any logged boulder) and tops with a ▲/▼ change,
+  flash rate (flashes ÷ tops, with the flash count), and hardest colour topped (by grade order,
+  with the previous range's when it differs). A stacked bar chart of tops per period, coloured by
+  grade, with whole-number axis ticks, a legend, tap-for-details and a table view. **Tops by
+  colour**: one bar per colour (hardest first), bar length = tops, solid part = flashes.
+- **Setup** is a list of rows that open sub-pages (‹ Setup goes back; the Setup tab always opens
+  the list). Groups: **Your gym** (things that belong to one gym), **All gyms**, **App**.
+  - **Your gym** card: the gym name, editable in place (up to 60 characters), with the wall and
+    colour counts; the **layout update** banner when there is one; and rows:
+    - **Map & walls**: a read-only map preview with the zone key and the wall legend (code + name).
+    - **Difficulty colours** (the row shows the colours easy → hard, left to right): stored
+      easiest → hardest, shown hardest on top with a Hard ↑ / Easy ↓ scale. Each row has a name,
+      a colour and a ⠿ handle: drag to reorder (or focus the handle and use ↑ ↓ keys). Layouts can
+      optionally include their own `grades` (easiest → hardest), which are applied on load while
+      reusing matching IDs and keeping any unlisted grades that have logged boulders.
+    - **Switch or upload gym**: **Built-in gyms** (the one in use shows "✓ In use", or **Update**
+      when a newer revision exists; others **Load**), and **Upload / Save file / Share** for layout
+      files. Maps are designed externally (e.g. with AI) as JSON layout files rather than drawn
+      in-app. A B-log `gym.json` is accepted as an upload too. Share is hidden where
+      `share.available` is false; Save falls back to a browser download in previews.
+  - **All gyms → Hold colours** (the row shows the colours): starts with 12 common hold colours;
+    rename, recolour, drag to reorder, add or remove. The order is the order of the swatches in
+    the sheet. (Hold colours are still stored in `gym.json`; move them to app-level data when
+    multiple gyms arrive.)
+  - **App → App settings**: Appearance System / Light / Dark (`settings.theme`).
   - A difficulty or hold colour used by logged boulders cannot be deleted; it can be renamed or
     recoloured.
+  - **Loading a layout** (upload, built-in Load or Update) replaces the name, grid, outline, zones
+    and walls, with Undo until a boulder is logged on a new wall. When the layout is a new version
+    of the **same gym** (same built-in `id`, else same name), walls are matched by `code` (else
+    name): a matched wall keeps its id and history and just takes the new shape (**reshaped**);
+    a new code is a **new wall** (`addedOn` = today once the gym has retired walls); a missing code
+    is **removed** (retired if it has logged boulders, dropped otherwise). A different gym never
+    matches walls: all used walls are retired.
+  - **Layout updates**: built-in gyms carry a permanent `id` and a `revision`. Loading one stores
+    `gym.source = { id, revision }`. When `js/gyms.js` ships a higher revision, Setup shows
+    "New <gym> layout · n new walls · n reshaped · n removed" with **Update**, and the Setup tab
+    gets a dot. A gym loaded before revisions existed (no `source`) is matched by name and offered
+    the update once.
 
 Terminology: a **top** is a boulder completed (`flash` or `sent`); `tried` is an attempt
 without a top. Tries count towards sessions but not tops.
@@ -68,7 +92,8 @@ without a top. Tries count towards sessions but not tops.
 widens the grid if an older layout reaches past the current one. `addedOn` is only set once the
 gym has retired walls, so a first setup can still log earlier days.
 
-Out of scope for now (agreed with the owner, may come later): multiple gyms, a background image of
+Out of scope for now (agreed with the owner, may come later): multiple gyms (the Setup list is
+already grouped per gym for it), a background image of
 the gym's own plan, attempt counts, notes, per-wall statistics, background image for the map.
 
 ---
@@ -80,17 +105,17 @@ Pure logic lives in `geometry.js` and `stats.js` so it can be unit tested in Nod
 
 | File | Responsibility |
 | :--- | :--- |
-| `index.html` | Shell: three panes (`#pane-climb`, `#pane-progress`, `#pane-setup`), the log/edit `<dialog id="sheet">`, toast, tab bar. |
-| `css/style.css` | Light/dark tokens (`prefers-color-scheme`), `--sa-*` safe-area tokens, map, sheet, chart styles. |
-| `js/app.js` | Entry point: loads the store, shows the damaged-file banner, tab switching, day rollover on `visibilitychange`. |
-| `js/climb.js` | Climb screen: day switcher, palette, tap handling (pin hit test → edit, wall snap → log), sheet, day summary. |
-| `js/setup.js` | Setup screen: wall drawing/naming/deletion, grid size, one colour-list editor shared by difficulty and hold colours. |
-| `js/progress.js` | Progress screen: tiles, SVG stacked bar chart, legend, details, table. |
-| `js/map.js` | SVG renderer in grid units (`viewBox`), tap → grid coordinates. Receives data; never reads the store. |
+| `index.html` | Shell: three panes (`#pane-climb`, `#pane-progress`, `#pane-setup` with `#setup-home` list and `#setup-page` sub-pages), the log/edit `<dialog id="sheet">`, toast, tab bar (inline SVG icons). |
+| `css/style.css` | Light/dark tokens (`prefers-color-scheme`, overridden by `:root[data-theme]`), `--sa-*` safe-area tokens, map, sheet, setup, chart styles. |
+| `js/app.js` | Entry point: loads the store, applies the theme, shows the damaged-file banner, tab switching, day rollover on `visibilitychange`. |
+| `js/climb.js` | Climb screen: day switcher, palette with counts, day tally, tap handling (pin hit test → edit, wall snap → log), sheet with pin-preview outcomes, day summary. |
+| `js/setup.js` | Setup screen: row list and sub-pages, layout load/upload/save/share and updates, drag-to-reorder colour lists, app settings. |
+| `js/progress.js` | Progress screen: comparison tiles, SVG stacked bar chart, legend, details, table, tops by colour. |
+| `js/map.js` | SVG renderer in grid units (`viewBox`), tap → grid coordinates, pin icon for the sheet. Receives data; never reads the store. |
 | `js/geometry.js` | Pure: snap to wall/grid, nearest pin, polyline midpoint, wall extent. |
-| `js/stats.js` | Pure: per-grade counts, week/month buckets, summary, local date helpers. |
-| `js/dom.js` | `$`, `h()` element builder (text via `textContent`), toast, `attempt()` error wrapper, swatch. |
-| `js/gyms.js` | Built-in gym layouts (plain layout-file objects) listed in Setup. |
+| `js/stats.js` | Pure: per-grade counts, week/month buckets, summary, chart axis scale, local date helpers. |
+| `js/dom.js` | `$`, `h()` element builder (text via `textContent`), toast, `attempt()` error wrapper, named swatch, `applyTheme()`. |
+| `js/gyms.js` | Built-in gym layouts (plain layout-file objects with `id` and `revision`) listed in Setup. |
 | `js/store.js` | Loads/validates/saves `data/*.json`. The only module that calls `bridge.js`. |
 | `js/bridge.js` | App² bridge wrapper, copied from the starter template. Do not edit except to refresh it from the host. |
 
@@ -121,13 +146,15 @@ Every mutation builds the next state, writes it, and publishes it only if the wr
   "walls": [{ "id": "w_…", "name": "Slab", "points": [[1, 1], [7, 1]],
                "addedOn": "2026-11-24", "removedOn": "2026-12-01" }],
   "grades": [{ "id": "g_red", "name": "Red", "color": "#ef4444" }],
-  "holds": [{ "id": "h_blue", "name": "Blue", "color": "#2563eb" }]
+  "holds": [{ "id": "h_blue", "name": "Blue", "color": "#2563eb" }],
+  "source": { "id": "rocktown", "revision": 1 }
 }
 ```
 `grades` order is the difficulty order, easiest first. `holds` are the hold colours; a file
 without `holds` (written before v0.2) loads the default list. Wall `addedOn`/`removedOn` are
 optional local dates (see wall history). `outline` is optional (`null` or absent = none): a closed
-polygon of grid points. `name` is the optional gym name (`null` or absent = none). `color` is `#rrggbb`. IDs are stable and
+polygon of grid points. `name` is the optional gym name (`null` or absent = none). `source` is
+the built-in gym and revision the layout came from (`null` or absent = uploaded or older file). `color` is `#rrggbb`. IDs are stable and
 never reused; names can change freely.
 
 ### `data/sends.json`
@@ -144,13 +171,16 @@ never reused; names can change freely.
   "outline": [[0, 0], [12, 0], [12, 16], [0, 16]],
   "walls": [{ "name": "Slab", "points": [[1, 1], [7, 1]] }] }
 ```
+Built-in layouts also carry `"id"` (permanent) and `"revision"` (integer ≥ 1). Walls may carry
+`code` (up to 8 characters, the wall's identity across revisions), `color` and `labelPos`.
 Validated on upload: grid 4–100, up to 200 walls (a file needs walls or an outline), 1–100 integer
 points per wall inside the grid, an optional name (trimmed, up to 60 characters), an optional outline of 3–100 such points, files up to 1 MiB.
 
 ### `data/settings.json`
 ```json
-{ "version": 1, "selectedGradeId": "g_red" }
+{ "version": 1, "selectedGradeId": "g_red", "theme": "system" }
 ```
+`theme` is `system`, `light` or `dark` (anything else loads as `system`).
 
 The repository copies of these files are the empty seeds shipped to new installs. Never commit
 real climbing data.
@@ -171,3 +201,11 @@ real climbing data.
   chart always pairs them with names: legend, tap details and the table view. Results are told
   apart by shape (halo = flash, solid ring = sent, dashed ring = tried), never by colour alone.
 - UI language is English. No `alert()`/`confirm()`; use the toast and inline hints.
+- **Built-in gym changes**: bump the gym's `revision` in `js/gyms.js` whenever its layout changes,
+  so installs offer the update. Never change a gym's `id`, and keep a wall's `code` when you
+  reshape or rename it (a new code = a new wall; a dropped code = a removed wall).
+- Keep the map neutral: never colour walls or zones by identity. Colour on the map is reserved
+  for logged boulders (difficulty ring, hold centre).
+- Colour dots use `--swatch-ring` so black stays visible on dark and white on light.
+- UI changes: show the owner screenshots of the options first and build after they choose;
+  take screenshots from a scratch copy (see Browser preview above).
