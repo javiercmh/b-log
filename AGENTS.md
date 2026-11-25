@@ -12,7 +12,9 @@ over weeks and months.
 
 ## 1. Features & workflows
 
-- **Climb** (default tab)
+- **Start tab**: Climb once a gym is loaded; a fresh install (no walls and no outline,
+  `store.hasGym()` false) opens on **Setup**, where the gym is added.
+- **Climb** (default tab once a gym is loaded)
   - A palette of the gym's colours (dot + name) sits above the map. Each colour carries a badge
     with the number of tops of that colour on the shown day. The selected colour is remembered
     (`data/settings.json`) and stays selected until changed, so logging a run of reds is one
@@ -51,15 +53,22 @@ over weeks and months.
   colour**: one bar per colour (hardest first), bar length = tops, solid part = flashes.
 - **Setup** is a list of rows that open sub-pages (‹ Setup goes back; the Setup tab always opens
   the list). Groups: **Your gym** (things that belong to one gym), **All gyms**, **App**.
-  - **Your gym** card: the gym name, editable in place (up to 60 characters), with the wall and
-    colour counts; the **layout update** banner when there is one; and rows:
-    - **Map & walls**: a read-only map preview with the zone key and the wall legend (code + name).
+  - **No gym loaded** (fresh install): "Your gym" is a single **+ Add your gym** card, and the
+    gym's own rows are hidden. It opens the **Add a gym** sheet: each built-in gym with a map
+    thumbnail, wall and colour counts and **Add**; a greyed "More gyms coming soon" row; and
+    **Upload layout file**. The Climb empty state's **Add your gym** button opens the same sheet.
+    Adding loads the layout like any other load (toast with Undo). There is no in-app map drawing,
+    so nothing here asks the user to design a map.
+  - **Your gym** card (once loaded): the gym name, editable in place (up to 60 characters), with
+    the wall and colour counts; a map thumbnail (turned on its side when the gym is taller than
+    wide) that opens **Map & walls**, a read-only map with the zone key and the wall legend
+    (code + name); the **layout update** banner when there is one; and rows:
     - **Difficulty colours** (the row shows the colours easy → hard, left to right): stored
       easiest → hardest, shown hardest on top with a Hard ↑ / Easy ↓ scale. Each row has a name,
       a colour and a ⠿ handle: drag to reorder (or focus the handle and use ↑ ↓ keys). Layouts can
       optionally include their own `grades` (easiest → hardest), which are applied on load while
       reusing matching IDs and keeping any unlisted grades that have logged boulders.
-    - **Switch or upload gym**: **Built-in gyms** (the one in use shows "✓ In use", or **Update**
+    - **Change gym**: **Built-in gyms** (the one in use shows "✓ In use", or **Update**
       when a newer revision exists; others **Load**), and **Upload / Save file / Share** for layout
       files. Maps are designed externally (e.g. with AI) as JSON layout files rather than drawn
       in-app. A B-log `gym.json` is accepted as an upload too. Share is hidden where
@@ -82,7 +91,10 @@ over weeks and months.
     `gym.source = { id, revision }`. When `js/gyms.js` ships a higher revision, Setup shows
     "New <gym> layout · n new walls · n reshaped · n removed" with **Update**, and the Setup tab
     gets a dot. A gym loaded before revisions existed (no `source`) is matched by name and offered
-    the update once.
+    the update once. A renamed built-in gym lists its old names in `formerNames`, so a gym loaded
+    under an old name still matches (walls keep their history); the rename itself reaches existing
+    installs through a revision bump.
+  - Built-in gyms so far: **RockTown Kaiserslautern** (`id: rocktown`, formerly "Rocktown").
 
 Terminology: a **top** is a boulder completed (`flash` or `sent`); `tried` is an attempt
 without a top. Tries count towards sessions but not tops.
@@ -105,13 +117,13 @@ Pure logic lives in `geometry.js` and `stats.js` so it can be unit tested in Nod
 
 | File | Responsibility |
 | :--- | :--- |
-| `index.html` | Shell: three panes (`#pane-climb`, `#pane-progress`, `#pane-setup` with `#setup-home` list and `#setup-page` sub-pages), the log/edit `<dialog id="sheet">`, toast, tab bar (inline SVG icons). |
+| `index.html` | Shell: three panes (`#pane-climb`, `#pane-progress`, `#pane-setup` with `#setup-home` list and `#setup-page` sub-pages), the log/edit `<dialog id="sheet">`, the add-a-gym `<dialog id="gym-sheet">`, toast, tab bar (inline SVG icons). |
 | `css/style.css` | Light/dark tokens (`prefers-color-scheme`, overridden by `:root[data-theme]`), `--sa-*` safe-area tokens, map, sheet, setup, chart styles. |
 | `js/app.js` | Entry point: loads the store, applies the theme, shows the damaged-file banner, tab switching, day rollover on `visibilitychange`. |
 | `js/climb.js` | Climb screen: day switcher, palette with counts, day tally, tap handling (pin hit test → edit, wall snap → log), sheet with pin-preview outcomes, day summary. |
-| `js/setup.js` | Setup screen: row list and sub-pages, layout load/upload/save/share and updates, drag-to-reorder colour lists, app settings. |
+| `js/setup.js` | Setup screen: "Add your gym" card and picker sheet when no gym is loaded, row list and sub-pages, layout load/upload/save/share and updates, drag-to-reorder colour lists, app settings. |
 | `js/progress.js` | Progress screen: comparison tiles, SVG stacked bar chart, legend, details, table, tops by colour. |
-| `js/map.js` | SVG renderer in grid units (`viewBox`), tap → grid coordinates, pin icon for the sheet. Receives data; never reads the store. |
+| `js/map.js` | SVG renderer in grid units (`viewBox`), tap → grid coordinates, pin icon for the sheet, static gym thumbnail (`mapThumb`). Receives data; never reads the store. |
 | `js/geometry.js` | Pure: snap to wall/grid, nearest pin, polyline midpoint, wall extent. |
 | `js/stats.js` | Pure: per-grade counts, week/month buckets, summary, chart axis scale, local date helpers. |
 | `js/dom.js` | `$`, `h()` element builder (text via `textContent`), toast, `attempt()` error wrapper, named swatch, `applyTheme()`. |
@@ -172,7 +184,8 @@ never reused; names can change freely.
   "outline": [[0, 0], [12, 0], [12, 16], [0, 16]],
   "walls": [{ "name": "Slab", "points": [[1, 1], [7, 1]] }] }
 ```
-Built-in layouts also carry `"id"` (permanent) and `"revision"` (integer ≥ 1). Walls may carry
+Built-in layouts also carry `"id"` (permanent) and `"revision"` (integer ≥ 1), and optionally
+`"formerNames"` (earlier names of the same gym, matched case-insensitively like the name). Walls may carry
 `code` (up to 8 characters, the wall's identity across revisions), `color` and `labelPos`.
 Validated on upload: grid 4–100, up to 200 walls (a file needs walls or an outline), 1–100 integer
 points per wall inside the grid, an optional name (trimmed, up to 60 characters), an optional outline of 3–100 such points, files up to 1 MiB.

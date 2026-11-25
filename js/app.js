@@ -35,7 +35,7 @@ progress.init();
 setup.init();
 
 for (const tab of document.querySelectorAll('.tab')) tab.onclick = () => show(tab.dataset.pane);
-$('go-setup').onclick = () => show('setup');
+$('go-setup').onclick = () => { show('setup'); setup.openAddGym(); };
 
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState !== 'visible') return;
@@ -43,5 +43,6 @@ document.addEventListener('visibilitychange', () => {
   if (current !== 'climb') screens[current].render();
 });
 
-show('climb');
+// A fresh install has nothing to log on yet, so it opens on Setup, where the gym is added.
+show(store.hasGym() ? 'climb' : 'setup');
 setup.render();   // shows the Setup tab's dot when a built-in gym has a newer layout

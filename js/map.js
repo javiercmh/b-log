@@ -181,3 +181,28 @@ export function renderMapLegend(host, { walls = [], zones = [] }) {
   host.replaceChildren(...parts);
   host.hidden = parts.length === 0;
 }
+
+/**
+ * A small static preview of a gym (outline, zones, walls) as a standalone SVG. A gym taller than it
+ * is wide is turned on its side so the preview fits a wide card. No labels, grid or pins.
+ */
+export function mapThumb({ cols, rows, outline, zones, walls }) {
+  const turn = rows > cols;
+  const w = turn ? rows : cols;
+  const ht = turn ? cols : rows;
+  const pad = Math.max(w, ht) * 0.015;
+  const svg = el('svg', {
+    class: 'map-thumb', viewBox: `${-pad} ${-pad} ${w + 2 * pad} ${ht + 2 * pad}`,
+    preserveAspectRatio: 'xMidYMid meet', 'aria-hidden': 'true'
+  });
+  // Turned: (x, y) → (y, cols - x), i.e. a quarter turn anticlockwise.
+  const g = el('g', turn ? { transform: `translate(0 ${cols}) rotate(-90)` } : {}, svg);
+  const pts = (list) => list.map((p) => p.join(',')).join(' ');
+  if (outline && outline.length >= 3) el('polygon', { class: 'thumb-outline', points: pts(outline) }, g);
+  for (const z of zones || []) el('polygon', { class: 'thumb-zone', points: pts(z.points) }, g);
+  for (const wall of walls) {
+    if (wall.points.length === 1) el('circle', { class: 'thumb-dot', cx: wall.points[0][0], cy: wall.points[0][1], r: 0.6 }, g);
+    else el('polyline', { class: 'thumb-wall', points: pts(wall.points) }, g);
+  }
+  return svg;
+}

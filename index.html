@@ -25,9 +25,9 @@
     </header>
 
     <div id="climb-empty" class="card empty" hidden>
-      <h2>Load your gym first</h2>
-      <p class="muted">Choose a built-in gym or upload a layout file in Setup. Then tap a wall here to log a boulder.</p>
-      <button id="go-setup" class="btn primary">Open Setup</button>
+      <h2>Add your gym first</h2>
+      <p class="muted">Pick your gym to get its map. Then tap a wall here to log a boulder.</p>
+      <button id="go-setup" class="btn primary">Add your gym</button>
     </div>
 
     <div id="climb-main">
@@ -89,17 +89,18 @@
       <header class="topbar"><h1>Setup</h1></header>
 
       <p class="section-label">Your gym</p>
-      <div class="card set-group">
+      <!-- Fresh install: one way in. Tapping it opens the gym picker sheet. -->
+      <button id="gym-add" class="add-card" hidden>
+        <span class="add-plus" aria-hidden="true">+</span>
+        <span class="add-text"><b>Add your gym</b><small>Pick your gym to get its map and difficulty colours.</small></span>
+      </button>
+      <div id="gym-card" class="card set-group" hidden>
         <div class="set-head">
           <input id="gym-name" class="field field-big" maxlength="60" placeholder="Gym name" autocomplete="off" aria-label="Gym name">
           <p class="gym-meta" id="gym-meta"></p>
+          <button id="gym-thumb" class="gym-thumb" aria-label="Show the map and walls"></button>
         </div>
         <div id="update-slot"></div>
-        <button class="set-row" data-page="walls">
-          <span class="set-ico" aria-hidden="true">▦</span>
-          <span class="set-main"><span class="set-title">Map &amp; walls</span><span class="set-sub" id="row-walls"></span></span>
-          <span class="set-chev" aria-hidden="true">›</span>
-        </button>
         <button class="set-row" data-page="grades">
           <span class="set-ico" aria-hidden="true">◐</span>
           <span class="set-main"><span class="set-title">Difficulty colours</span><span class="set-sub" id="row-grades"></span></span>
@@ -107,7 +108,7 @@
         </button>
         <button class="set-row" data-page="gyms">
           <span class="set-ico" aria-hidden="true">⇄</span>
-          <span class="set-main"><span class="set-title">Switch or upload gym</span><span class="set-sub">Built-in gyms, layout files</span></span>
+          <span class="set-main"><span class="set-title">Change gym</span><span class="set-sub">Pick another gym or upload a layout</span></span>
           <span class="set-chev" aria-hidden="true">›</span>
         </button>
       </div>
@@ -182,6 +183,17 @@
       </div>
     </div>
   </section>
+
+  <!-- ===== Add a gym sheet (Setup) ===== -->
+  <dialog id="gym-sheet" class="sheet" aria-labelledby="gym-sheet-title">
+    <div class="sheet-body">
+      <h2 id="gym-sheet-title" tabindex="-1" autofocus>Add a gym</h2>
+      <ul id="gym-picks" class="gym-picks"></ul>
+      <div class="gym-pick soon"><span class="gp-main"><span class="gp-name">More gyms coming soon</span><span class="gp-sub">Or upload a layout file below</span></span></div>
+      <p class="or-divider"><span>or</span></p>
+      <button id="gym-sheet-upload" class="btn ghost">↑ Upload layout file</button>
+    </div>
+  </dialog>
 
   <!-- ===== Log / edit sheet ===== -->
   <dialog id="sheet" class="sheet">

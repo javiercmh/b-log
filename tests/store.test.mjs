@@ -316,6 +316,26 @@ test('a layout loaded before revisions existed is offered the built-in update on
   assert.equal(store.layoutUpdate([next]), null);
 });
 
+test('a renamed built-in gym still matches a layout loaded under a former name', () => {
+  store.importLayout(store.parseLayout(JSON.stringify({ cols: 20, rows: 20, name: 'Old Gym', walls: [{ code: 'A', name: 'Slab', points: [[1, 1], [5, 1]] }] })));
+  const w = store.activeWalls()[0];
+  store.addSend({ date: localIso(), gradeId: 'g_red', wallId: w.id, x: 2, y: 1, result: 'sent' });
+  const next = rev(2, [{ code: 'A', name: 'Slab', points: [[1, 1], [5, 1]] }], { name: 'New Gym', formerNames: ['old gym'] });
+  assert.ok(store.isFromBuiltIn(next));
+  assert.ok(store.layoutUpdate([next]));
+  const r = store.importLayout(store.parseLayout(JSON.stringify(next)));
+  assert.equal(r.retired, 0);
+  assert.equal(store.wall(w.id).removedOn, undefined);
+  assert.equal(store.gym.name, 'New Gym');
+  assert.equal(store.layoutUpdate([next]), null);
+});
+
+test('hasGym is false on a fresh install and true once a layout is loaded', () => {
+  assert.equal(store.hasGym(), false);
+  store.importLayout(store.parseLayout(JSON.stringify(rev(1, [{ code: 'A', name: 'Slab', points: [[1, 1], [5, 1]] }]))));
+  assert.equal(store.hasGym(), true);
+});
+
 test('colours move to a position in one write', () => {
   store.moveColourTo('grades', 'g_yellow', 3);
   assert.deepEqual(store.gym.grades.map((g) => g.id), ['g_green', 'g_blue', 'g_red', 'g_yellow', 'g_black']);

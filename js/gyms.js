@@ -2,14 +2,16 @@
 // loaded exactly like an uploaded one. Add a gym by appending its layout here.
 // `id` is permanent; bump `revision` whenever a gym's layout changes so the app offers the update.
 // Walls are matched across revisions by `code` (else name): keep a wall's code to keep its history.
+// When renaming a gym, list its old names in `formerNames` so layouts loaded under them still match.
 
 export const BUILT_IN_GYMS = [
   {
     format: 'b-log-layout',
     version: 1,
     id: 'rocktown',
-    revision: 2,
-    name: 'Rocktown',
+    revision: 3,
+    name: 'RockTown Kaiserslautern',
+    formerNames: ['Rocktown'],
     cols: 26,
     rows: 100,
     // Difficulty levels from easiest to hardest

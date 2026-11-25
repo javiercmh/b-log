@@ -1,8 +1,9 @@
 // setup.js — the Setup screen: a list of rows (this gym, all gyms, app) that each open a sub-page.
-// Sub-pages: map & walls, difficulty colours, switching/uploading gyms, hold colours, app settings.
+// Sub-pages: map & walls, difficulty colours, changing/uploading gyms, hold colours, app settings.
+// With no gym loaded, "Your gym" is a single "Add your gym" card that opens the gym picker sheet.
 
 import * as store from './store.js';
-import { createMap, renderMapLegend } from './map.js';
+import { createMap, renderMapLegend, mapThumb } from './map.js';
 import { $, h, toast, attempt, applyTheme } from './dom.js';
 import { save, share } from './bridge.js';
 import { BUILT_IN_GYMS } from './gyms.js';
@@ -10,7 +11,7 @@ import { BUILT_IN_GYMS } from './gyms.js';
 const PAGES = {
   walls: { title: 'Map & walls', context: 'gym' },
   grades: { title: 'Difficulty colours', context: 'gym' },
-  gyms: { title: 'Switch or upload gym', context: 'gym' },
+  gyms: { title: 'Change gym', context: 'gym' },
   holds: { title: 'Hold colours', context: 'All gyms' },
   app: { title: 'App settings', context: '' }
 };
@@ -24,17 +25,19 @@ export function init() {
 
   for (const row of document.querySelectorAll('#setup-home .set-row')) row.onclick = () => openPage(row.dataset.page);
   $('setup-back').onclick = () => openPage(null);
+  $('gym-thumb').onclick = () => openPage('walls');
+
+  $('gym-add').onclick = openAddGym;
+  const sheet = $('gym-sheet');
+  sheet.addEventListener('click', (e) => { if (e.target === sheet) sheet.close(); });
+  $('gym-sheet-upload').onclick = () => { sheet.close(); chooseLayoutFile(); };
 
   $('gym-name').onchange = (e) => {
     if (attempt(() => store.setGymName(e.target.value))) render();
   };
   $('gym-name').addEventListener('keydown', (e) => { if (e.key === 'Enter') e.target.blur(); });
 
-  $('layout-upload').onclick = () => {
-    const input = $('layout-file');
-    input.value = '';   // choosing the same file again must still fire `change`
-    input.click();
-  };
+  $('layout-upload').onclick = chooseLayoutFile;
   $('layout-file').onchange = uploadLayout;
   $('layout-save').onclick = saveLayout;
   $('layout-share').onclick = shareLayout;
@@ -74,6 +77,33 @@ export function openPage(name) {
   window.scrollTo(0, 0);
 }
 
+/** Opens the "Add a gym" sheet: the built-in gyms, plus uploading a layout file. */
+export function openAddGym() {
+  $('gym-picks').replaceChildren(...BUILT_IN_GYMS.map((g) => h('li', { class: 'gym-pick' },
+    h('span', { class: 'gp-thumb' }, mapThumb(g)),
+    h('span', { class: 'gp-main' },
+      h('span', { class: 'gp-name', text: g.name }),
+      h('span', { class: 'gp-sub', text: gymSummary(g) })),
+    h('button', {
+      class: 'btn primary sm', text: 'Add', 'aria-label': `Add ${g.name}`,
+      onclick: () => { $('gym-sheet').close(); loadLayout(JSON.stringify(g)); }
+    }))));
+  $('gym-sheet').showModal();
+}
+
+/** "10 walls · 6 colours" for a built-in layout. */
+function gymSummary(g) {
+  const parts = [g.walls.length ? `${g.walls.length} wall${g.walls.length === 1 ? '' : 's'}` : 'Outline only'];
+  if (g.grades?.length) parts.push(`${g.grades.length} colours`);
+  return parts.join(' · ');
+}
+
+function chooseLayoutFile() {
+  const input = $('layout-file');
+  input.value = '';   // choosing the same file again must still fire `change`
+  input.click();
+}
+
 // --- Layout updates ---
 
 /** A newer revision of the built-in gym in use, or null. */
@@ -100,7 +130,7 @@ function renderUpdate() {
 
 // --- Layout files ---
 
-/** File name from the gym name: "Rocktown" → rocktown-b-log-layout.json. */
+/** File name from the gym name: "RockTown Kaiserslautern" → rocktown-kaiserslautern-b-log-layout.json. */
 function layoutName() {
   const slug = (store.gym.name || '').normalize('NFKD').replace(/[̀-ͯ]/g, '')
     .toLowerCase().replace(/ß/g, 'ss').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40);
@@ -182,9 +212,16 @@ const strip = (list) => h('span', { class: 'strip', 'aria-hidden': 'true' },
 
 export function render() {
   const walls = store.activeWalls();
+  const hasGym = store.hasGym();
+  $('gym-add').hidden = hasGym;
+  $('gym-card').hidden = !hasGym;
+  if (hasGym) {
+    $('gym-thumb').replaceChildren(mapThumb({
+      cols: store.gym.cols, rows: store.gym.rows, outline: store.gym.outline, zones: store.gym.zones, walls
+    }));
+  }
   if (document.activeElement !== $('gym-name')) $('gym-name').value = store.gym.name || '';
   $('gym-meta').textContent = `${walls.length} wall${walls.length === 1 ? '' : 's'} · ${store.gym.grades.length} difficulty colours`;
-  $('row-walls').textContent = `${walls.length} walls · ${store.gym.cols} × ${store.gym.rows} grid`;
   $('row-grades').replaceChildren(h('span', { class: 'strip-scale' },
     h('span', { text: 'Easy' }), strip(store.gym.grades), h('span', { text: 'Hard' })));
   $('row-grades').setAttribute('aria-label', `Easiest to hardest: ${store.gym.grades.map((g) => g.name).join(', ')}`);
@@ -215,7 +252,7 @@ export function render() {
 function renderBuiltIns() {
   const update = pendingUpdate();
   $('builtin-gyms').replaceChildren(...BUILT_IN_GYMS.map((g) => {
-    const inUse = store.gym.source ? store.gym.source.id === g.id : store.gym.name === g.name;
+    const inUse = store.hasGym() && store.isFromBuiltIn(g);
     const outdated = inUse && update && update.layout.id === g.id;
     return h('li', {},
       h('span', {}, h('span', { class: 'name', text: g.name }), ' ',

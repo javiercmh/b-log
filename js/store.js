@@ -234,6 +234,9 @@ const isRetired = (w) => Boolean(w.removedOn);
 /** Walls of the current layout. */
 export function activeWalls() { return gym.walls.filter((w) => !isRetired(w)); }
 
+/** True once a gym layout (walls or an outline) is loaded; false on a fresh install. */
+export function hasGym() { return activeWalls().length > 0 || Boolean(gym.outline); }
+
 /** Walls that stood on `date`, plus any wall with a boulder logged that day. */
 export function wallsOn(date) {
   const used = new Set(sendsOn(date).map((s) => s.wallId));
@@ -381,9 +384,14 @@ export function parseLayout(text) {
   const name = typeof v.name === 'string' && v.name.trim() ? v.name.trim().slice(0, MAX_GYM_NAME) : null;
   // Built-in gyms carry an id and a revision so B-log can offer their updates.
   const source = validSource({ id: v.id, revision: v.revision }) ? { id: v.id, revision: v.revision } : null;
+  // Earlier names of the same gym, so a renamed gym still matches a layout loaded under its old name.
+  const formerNames = Array.isArray(v.formerNames)
+    ? v.formerNames.filter((n) => typeof n === 'string' && n.trim()).map((n) => n.trim().slice(0, MAX_GYM_NAME)).slice(0, 10)
+    : [];
   return {
     name,
     ...(source ? { source } : {}),
+    ...(formerNames.length ? { formerNames } : {}),
     cols: v.cols,
     rows: v.rows,
     outline,
@@ -412,10 +420,22 @@ export function parseLayout(text) {
 /** A wall's identity across layout versions: its code (e.g. "W5"), else its name. */
 const wallKey = (w) => (w.code || w.name).trim().toLowerCase();
 
+/** True when `name` is the layout's name or one of its former names (case-insensitive). */
+function namedAs(layout, name) {
+  if (!name) return false;
+  const n = name.toLowerCase();
+  return [layout.name, ...(layout.formerNames || [])].some((x) => x && x.toLowerCase() === n);
+}
+
 /** True when a layout is a new version of the current gym rather than a different gym. */
 function sameGym(layout) {
   if (layout.source && gym.source) return layout.source.id === gym.source.id;
-  return Boolean(layout.name && gym.name && layout.name.toLowerCase() === gym.name.toLowerCase());
+  return namedAs(layout, gym.name);
+}
+
+/** True when the current gym was loaded from this built-in layout (by id, else by current or former name). */
+export function isFromBuiltIn(builtIn) {
+  return gym.source ? gym.source.id === builtIn.id : namedAs(builtIn, gym.name);
 }
 
 /**
@@ -502,12 +522,10 @@ export function importLayout(layout) {
 /**
  * The built-in gym the current layout came from, when it has a newer revision.
  * Returns { layout, added, reshaped, removed } or null. A layout loaded before revisions existed
- * (no `source`) is matched by name and offered the update once.
+ * (no `source`) is matched by name (or a former name) and offered the update once.
  */
 export function layoutUpdate(builtIns) {
-  const src = gym.source
-    ? builtIns.find((b) => b.id === gym.source.id)
-    : builtIns.find((b) => b.name && gym.name && b.name.toLowerCase() === gym.name.toLowerCase());
+  const src = builtIns.find(isFromBuiltIn);
   if (!src || !Number.isInteger(src.revision)) return null;
   if (gym.source && gym.source.revision >= src.revision) return null;
   const current = new Map(activeWalls().map((w) => [wallKey(w), w]));

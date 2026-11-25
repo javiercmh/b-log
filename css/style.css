@@ -332,6 +332,36 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .drag-item .field:focus { background: var(--bg); border-color: var(--accent); }
 .drag-item .icon-btn { min-width: 40px; font-size: 1.1rem; color: var(--muted); }
 
+/* Fresh install: the "Add your gym" card and the gym picker sheet. */
+.add-card {
+  display: flex; align-items: center; gap: 14px; width: 100%; padding: 18px 16px; text-align: left;
+  border-radius: var(--radius); border: 2px dashed color-mix(in srgb, var(--accent) 55%, transparent);
+  background: color-mix(in srgb, var(--accent) 7%, var(--surface));
+}
+.add-card:active { transform: scale(0.99); filter: brightness(0.95); }
+.add-plus { width: 44px; height: 44px; border-radius: 14px; background: var(--accent); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 1.7rem; line-height: 1; flex: 0 0 auto; }
+.add-text b { display: block; font-size: 1.05rem; }
+.add-text small { display: block; color: var(--muted); font-size: 0.82rem; line-height: 1.35; margin-top: 2px; }
+.gym-thumb { display: flex; width: 100%; padding: 6px; margin-bottom: 10px; border-radius: 10px; border: 1px solid var(--border); background: var(--floor); }
+.gym-thumb:active { filter: brightness(0.95); }
+.map-thumb { display: block; width: 100%; height: auto; max-height: 140px; }
+.gp-thumb .map-thumb { width: 86px; height: 30px; }
+.thumb-outline { fill: var(--surface-2); stroke: var(--wall); stroke-width: 1px; vector-effect: non-scaling-stroke; opacity: 0.85; }
+.thumb-zone { fill: none; stroke: var(--muted); stroke-width: 0.75px; stroke-dasharray: 2 2; vector-effect: non-scaling-stroke; }
+.thumb-wall { fill: none; stroke: var(--wall); stroke-width: 2.5px; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.thumb-dot { fill: var(--wall); }
+.gym-picks { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+.gym-pick { display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: 14px; border: 1.5px solid var(--border); background: var(--surface); }
+.gym-picks .gym-pick { border-color: color-mix(in srgb, var(--accent) 70%, transparent); background: color-mix(in srgb, var(--accent) 8%, var(--surface)); }
+.gym-pick.soon { border-style: dashed; opacity: 0.55; }
+.gp-thumb { flex: 0 0 auto; display: flex; padding: 3px; border-radius: 8px; border: 1px solid var(--border); background: var(--floor); }
+.gp-main { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.gp-name { font-weight: 700; }
+.gp-sub { font-size: 0.78rem; color: var(--muted); }
+.or-divider { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 0.75rem; font-weight: 650; text-transform: uppercase; letter-spacing: 0.06em; }
+.or-divider::before, .or-divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+#gym-sheet-title:focus { outline: none; }
+
 .builtin-list { list-style: none; display: flex; flex-direction: column; gap: 8px; }
 .builtin-list li { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 48px; }
 .builtin-list .btn { flex: 0 0 auto; padding: 0 22px; }

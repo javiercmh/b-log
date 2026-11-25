@@ -8,7 +8,7 @@ colour of its holds so you know which route it was.
   switch days to review or edit older ones. A summary counts flashes, sends and tries per colour.
 - **Progress**: tops per week or month as a stacked chart by colour, sessions, flashes and your
   hardest colour.
-- **Setup**: load a built-in gym (Rocktown so far) or upload, save and share gym layout files.
+- **Setup**: add your gym from the built-in list (RockTown Kaiserslautern so far) or upload, save and share gym layout files. A fresh install opens here.
   When a built-in gym's map changes, B-log offers the update and keeps your walls and history.
   Drag to order your gym's difficulty colours and the hold colours, and pick light, dark or system
   appearance.
