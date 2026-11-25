@@ -8,6 +8,15 @@ export const BUILT_IN_GYMS = [
     name: 'Rocktown',
     cols: 26,
     rows: 100,
+    // Difficulty levels from easiest to hardest
+    grades: [
+      { name: 'Blue', color: '#3b82f6' },
+      { name: 'Green', color: '#22c55e' },
+      { name: 'Red', color: '#ef4444' },
+      { name: 'Yellow', color: '#facc15' },
+      { name: 'Black', color: '#1f2937' },
+      { name: 'White', color: '#f8fafc' }
+    ],
     // Traced from satellite + interior photos, turned upright: west end at the top, parking side
     // on the left. 1 grid unit ≈ 0.8 m. 2nd floor (above the West Cave) sits cleanly in y = 0..16
     // above the 1st floor outline (y = 20..100) so walls and pins never overlap.

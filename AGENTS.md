@@ -51,8 +51,10 @@ over weeks and months.
     no fetch is needed); add a gym by appending its layout object there. Currently: Rocktown
     (26 × 100 with 2nd floor above the 1st floor outline, mats, walkway, named areas, and
     colour-coded walls).
-  - **Difficulty colours**: ordered easiest → hardest, each with a name and a colour. Reorder
-    with ↑ ↓.
+  - **Difficulty colours**: stored easiest → hardest, shown hardest → easiest in Setup (easiest at
+    the bottom, like most gyms), each with a name and a colour. Reorder with ↑ ↓. Layouts can
+    optionally include their own `grades` (easiest → hardest), which are applied on load while
+    reusing matching IDs and keeping any unlisted grades that have logged boulders.
   - **Hold colours**: starts with 12 common hold colours; rename, recolour, reorder, add or
     remove them. The order is the order of the swatches in the sheet.
   - A difficulty or hold colour used by logged boulders cannot be deleted; it can be renamed or

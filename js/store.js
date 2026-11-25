@@ -268,6 +268,9 @@ export function layoutFile() {
     rows: gym.rows,
     ...(gym.outline ? { outline: gym.outline } : {}),
     ...(gym.zones && gym.zones.length ? { zones: gym.zones } : {}),
+    ...(gym.grades && gym.grades.length
+      ? { grades: gym.grades.map((g) => ({ name: g.name, color: g.color })) }
+      : {}),
     walls: activeWalls().map((w) => ({
       ...(w.code ? { code: w.code } : {}),
       name: w.name,
@@ -322,6 +325,16 @@ export function parseLayout(text) {
       }));
     }
   }
+  let grades = null;
+  if (v.grades !== undefined && v.grades !== null) {
+    if (!Array.isArray(v.grades) || v.grades.length > 30 || !v.grades.every((g) => g && typeof g === 'object'
+      && typeof g.name === 'string' && g.name.trim() && isColor(g.color))) {
+      throw new Error('The difficulty colours in this layout are broken.');
+    }
+    if (v.grades.length) {
+      grades = v.grades.map((g) => ({ name: g.name.trim().slice(0, 24), color: g.color }));
+    }
+  }
   if (!walls.length && !outline) throw new Error('This layout has no walls.');
   if (walls.length > MAX_LAYOUT_WALLS) throw new Error(`A layout can have at most ${MAX_LAYOUT_WALLS} walls.`);
   const name = typeof v.name === 'string' && v.name.trim() ? v.name.trim().slice(0, MAX_GYM_NAME) : null;
@@ -331,6 +344,7 @@ export function parseLayout(text) {
     rows: v.rows,
     outline,
     ...(zones ? { zones } : {}),
+    ...(grades ? { grades } : {}),
     walls: walls.map((w, i) => {
       if (!Array.isArray(w.points) || !w.points.length || w.points.length > MAX_WALL_POINTS || !w.points.every(onGrid)
         || (w.code !== undefined && w.code !== null && typeof w.code !== 'string')
@@ -352,8 +366,10 @@ export function parseLayout(text) {
 }
 
 /**
- * Replaces the current layout (name, grid, outline, zones, walls) with a parsed one. Walls with logged boulders are retired (kept
- * for the history); unused current walls are dropped. Returns the previous grid and walls for Undo.
+ * Replaces the current layout (name, grid, outline, zones, walls, and optional grades) with a parsed one.
+ * Walls with logged boulders are retired (kept for the history); unused current walls are dropped.
+ * When the layout includes grades, existing grade IDs matching by name are reused, and any unlisted
+ * grades with logged boulders are kept so history stays intact. Returns the previous state for Undo.
  */
 export function importLayout(layout) {
   const today = localIso();
@@ -363,7 +379,8 @@ export function importLayout(layout) {
     rows: gym.rows,
     walls: gym.walls,
     outline: gym.outline || null,
-    zones: gym.zones || null
+    zones: gym.zones || null,
+    grades: gym.grades
   };
   const retiring = activeWalls().filter((w) => wallSendCount(w.id) > 0);
   const kept = gym.walls
@@ -380,6 +397,24 @@ export function importLayout(layout) {
     ...(w.labelPos ? { labelPos: w.labelPos } : {}),
     ...dates
   }));
+
+  let nextGrades = gym.grades;
+  if (layout.grades && layout.grades.length) {
+    const existingByName = new Map(gym.grades.map((g) => [g.name.toLowerCase(), g]));
+    const usedIds = new Set();
+    const gStamp = uid('g');
+    const mapped = layout.grades.map((g, i) => {
+      const match = existingByName.get(g.name.toLowerCase());
+      if (match && !usedIds.has(match.id)) {
+        usedIds.add(match.id);
+        return { id: match.id, name: g.name, color: g.color };
+      }
+      return { id: `${gStamp}${i}`, name: g.name, color: g.color };
+    });
+    const preserved = gym.grades.filter((g) => !usedIds.has(g.id) && colourSendCount('grades', g.id) > 0);
+    nextGrades = [...mapped, ...preserved];
+  }
+
   commitGym({
     ...gym,
     name: layout.name || null,
@@ -387,6 +422,7 @@ export function importLayout(layout) {
     rows: layout.rows,
     outline: layout.outline || null,
     zones: layout.zones || null,
+    grades: nextGrades,
     walls: [...kept, ...added]
   });
   return { previous, added: added.length, retired: retiring.length };
@@ -405,7 +441,8 @@ export function restoreLayout(previous) {
     rows: previous.rows,
     walls: previous.walls,
     outline: previous.outline,
-    zones: previous.zones || null
+    zones: previous.zones || null,
+    grades: previous.grades || gym.grades
   });
 }
 

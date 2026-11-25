@@ -132,14 +132,18 @@ export function render() {
 }
 
 const LISTS = {
-  grades: { list: 'grade-list', add: 'grade-add', up: 'easier', down: 'harder' },
-  holds: { list: 'hold-list', add: 'hold-add', up: 'up', down: 'down' }
+  // Grades are stored easiest → hardest in store.js, but shown hardest → easiest in Setup
+  // (easiest at the bottom, like most gym boards).
+  grades: { list: 'grade-list', add: 'grade-add', up: 'harder', down: 'easier', reverse: true },
+  holds: { list: 'hold-list', add: 'hold-add', up: 'up', down: 'down', reverse: false }
 };
 
-/** Editable colour list, shared by grades (difficulty order) and hold colours. */
+/** Editable colour list, shared by grades (hardest → easiest in UI) and hold colours. */
 function renderColours(kind) {
-  const items = store.gym[kind];
-  const { list, up, down } = LISTS[kind];
+  const { list, up, down, reverse } = LISTS[kind];
+  const items = reverse ? [...store.gym[kind]].reverse() : store.gym[kind];
+  const stepUp = reverse ? 1 : -1;
+  const stepDown = reverse ? -1 : 1;
   const rerender = () => renderColours(kind);
   $(list).replaceChildren(...items.map((c, i) => {
     const used = store.colourSendCount(kind, c.id);
@@ -163,9 +167,9 @@ function renderColours(kind) {
         }
       }),
       h('button', { class: 'icon-btn', 'aria-label': `Move ${c.name} ${up}`, disabled: i === 0, text: '↑',
-        onclick: () => { if (attempt(() => store.moveColour(kind, c.id, -1))) rerender(); } }),
+        onclick: () => { if (attempt(() => store.moveColour(kind, c.id, stepUp))) rerender(); } }),
       h('button', { class: 'icon-btn', 'aria-label': `Move ${c.name} ${down}`, disabled: i === items.length - 1, text: '↓',
-        onclick: () => { if (attempt(() => store.moveColour(kind, c.id, 1))) rerender(); } }),
+        onclick: () => { if (attempt(() => store.moveColour(kind, c.id, stepDown))) rerender(); } }),
       h('button', {
         class: 'icon-btn',
         'aria-label': `Delete ${c.name}`,

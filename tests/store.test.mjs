@@ -116,11 +116,19 @@ test('a layout file round-trips and rejects broken files', () => {
   store.addWall('Slab', [[0, 0], [4, 0]]);
   const text = JSON.stringify(store.layoutFile());
   const parsed = store.parseLayout(text);
-  assert.deepEqual(parsed, { name: null, cols: 12, rows: 16, outline: null, walls: [{ name: 'Slab', points: [[0, 0], [4, 0]] }] });
+  assert.deepEqual(parsed, {
+    name: null,
+    cols: 12,
+    rows: 16,
+    outline: null,
+    grades: store.gym.grades.map((g) => ({ name: g.name, color: g.color })),
+    walls: [{ name: 'Slab', points: [[0, 0], [4, 0]] }]
+  });
   assert.throws(() => store.parseLayout('nope'), /not a B-log layout/);
   assert.throws(() => store.parseLayout(JSON.stringify({ cols: 12, rows: 16, walls: [] })), /no walls/);
   assert.throws(() => store.parseLayout(JSON.stringify({ cols: 101, rows: 16, walls: [] })), /grid/);
   assert.throws(() => store.parseLayout(JSON.stringify({ cols: 4, rows: 4, walls: [{ name: 'X', points: [[0, 9]] }] })), /broken/);
+  assert.throws(() => store.parseLayout(JSON.stringify({ cols: 4, rows: 4, grades: [{ name: 'Bad', color: 'red' }], walls: [{ name: 'X', points: [[0, 0]] }] })), /difficulty/);
   // A whole gym.json works too.
   assert.equal(store.parseLayout(files.get(store.FILES.gym)).walls.length, 1);
 });
@@ -190,10 +198,36 @@ test('every built-in gym is a valid layout', async () => {
     const parsed = store.parseLayout(JSON.stringify(g));
     assert.equal(parsed.name, g.name);
     assert.equal(parsed.walls.length, g.walls.length);
-    store.importLayout(parsed);
+    const r = store.importLayout(parsed);
     const exported = store.layoutFile();
     assert.equal(exported.walls[0].code, g.walls[0].code);
     assert.equal(exported.walls[0].color, g.walls[0].color);
     assert.equal(exported.zones.length, g.zones.length);
+    assert.deepEqual(exported.grades, g.grades);
+    store.restoreLayout(r.previous);
   }
+});
+
+test('importing a layout with grades reuses matching IDs, preserves used grades, and supports Undo', () => {
+  const w = store.addWall('Slab', [[0, 0], [4, 0]]);
+  const extra = store.addColour('grades', 'Pink', '#ec4899');
+  store.addSend({ date: localIso(), gradeId: extra.id, wallId: w.id, x: 1, y: 0, result: 'sent' });
+  store.addSend({ date: localIso(), gradeId: 'g_blue', wallId: w.id, x: 2, y: 0, result: 'flash' });
+
+  const layout = store.parseLayout(JSON.stringify({
+    cols: 8,
+    rows: 8,
+    grades: [
+      { name: 'Blue', color: '#2563eb' },
+      { name: 'White', color: '#f8fafc' }
+    ],
+    walls: [{ name: 'Cave', points: [[1, 1], [1, 5]] }]
+  }));
+  const r = store.importLayout(layout);
+  assert.deepEqual(store.gym.grades.map((g) => g.name), ['Blue', 'White', 'Pink']);
+  assert.equal(store.gym.grades[0].id, 'g_blue');
+  assert.equal(store.gym.grades[0].color, '#2563eb');
+  assert.equal(store.gym.grades[2].id, extra.id);
+  store.restoreLayout(r.previous);
+  assert.ok(store.gym.grades.some((g) => g.id === 'g_yellow'));
 });
