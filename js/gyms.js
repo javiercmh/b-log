@@ -23,8 +23,9 @@ export const BUILT_IN_GYMS = [
     outline: [[26, 20], [26, 100], [10, 98], [8, 72], [0, 59], [0, 24]],
     zones: [
       // 2nd floor deck (above West Cave)
-      { kind: 'floor', label: '2F · ABOVE CAVE', labelPos: [13, 14.8], points: [[26, 0], [26, 16], [0, 16], [0, 4]] },
-      { kind: 'area', label: 'Yoga', color: '#a855f7', points: [[2, 4], [9, 4], [9, 12], [2, 12]] },
+      { kind: 'floor', label: '2F · ABOVE CAVE', labelPos: [13, 15.0], points: [[26, 0], [26, 16], [0, 16], [0, 4]] },
+      { kind: 'mat', points: [[8, 4], [17, 3], [18, 4], [22, 2], [25, 3], [25, 12], [8, 12]] },
+      { kind: 'area', label: 'Yoga', color: '#a855f7', points: [[1, 5], [7, 5], [7, 12], [1, 12]] },
       // 1st floor climbing mats
       { kind: 'mat', points: [[0, 24], [26, 20], [26, 69], [18, 69], [16, 40], [11, 40], [11, 59], [0, 59]] },
       { kind: 'mat', points: [[17, 72], [26, 72], [26, 95], [15, 95], [15, 77]] },
@@ -44,9 +45,8 @@ export const BUILT_IN_GYMS = [
     ],
     walls: [
       // 2nd floor (above West Cave)
-      { code: '2F-1', name: 'Kilterboard', color: '#38bdf8', labelPos: [17, 9.2], points: [[14, 12], [20, 12]] },
-      { code: '2F-2', name: 'MoonBoard', color: '#facc15', labelPos: [14, 2.0], points: [[10, 4], [18, 4]] },
-      { code: '2F-3', name: '2F North Wall', color: '#fb923c', labelPos: [21.5, 6.4], points: [[20, 4], [24, 4], [24, 12]] },
+      { code: '2F-1', name: '2F West Wall & Alcove', color: '#facc15', labelPos: [15.0, 6.2], points: [[8, 4], [17, 3], [18, 4], [22, 2], [25, 3]] },
+      { code: '2F-2', name: '2F North Wall', color: '#fb923c', labelPos: [21.8, 7.2], points: [[25, 3], [25, 11]] },
       // 1st floor (Main Hall, West → East)
       { code: 'W1', name: 'West Cave', color: '#f97316', labelPos: [16.5, 31], points: [[14, 36], [14, 26], [19, 26], [19, 36]] },
       { code: 'W2', name: 'Cave Barrel & North', color: '#ef4444', labelPos: [22.2, 32.6], points: [[19, 36], [21, 35], [23, 36], [25, 39], [25, 52]] },

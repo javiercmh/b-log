@@ -1,7 +1,7 @@
 {
   "name": "B-log",
   "short_name": "B-log",
-  "version": "0.6.1",
+  "version": "0.6.2",
   "templateVersion": 3,
   "description": "Boulder logbook: draw your gym, tap a wall to log a send by colour, and track your progress",
   "author": "Javier Melo",
