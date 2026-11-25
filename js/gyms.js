@@ -8,7 +8,7 @@ export const BUILT_IN_GYMS = [
     format: 'b-log-layout',
     version: 1,
     id: 'rocktown',
-    revision: 1,
+    revision: 2,
     name: 'Rocktown',
     cols: 26,
     rows: 100,
@@ -57,7 +57,7 @@ export const BUILT_IN_GYMS = [
       { code: 'W3', name: 'South Blue/Grey Bay', color: '#eab308', labelPos: [5.4, 41], points: [[14, 36], [10, 35], [2, 37], [1, 41], [1, 44], [2, 46]] },
       { code: 'W4', name: 'South Big Wave', color: '#f43f5e', labelPos: [5.2, 50.5], points: [[2, 46], [7, 47], [9, 49], [9, 52], [7, 54], [2, 54]] },
       { code: 'W5', name: 'North Narrow Prow', color: '#22c55e', labelPos: [22.0, 54], points: [[25, 52], [19, 54], [25, 56]] },
-      { code: 'W6', name: 'North Faceted & Corner', color: '#06b6d4', labelPos: [20.2, 63], points: [[25, 56], [24, 60], [22, 63], [24, 66], [22, 68]] },
+      { code: 'W6', name: 'North Faceted & Corner', color: '#06b6d4', labelPos: [21.2, 63], points: [[25, 56], [23, 63], [24, 68], [19, 68]] },
       { code: 'W7', name: 'East Overhang', color: '#3b82f6', labelPos: [18.6, 82.5], points: [[25, 72], [25, 76], [23, 78], [21, 81], [21, 84], [23, 86], [25, 88]] },
       { code: 'W8', name: 'Fußball Dome', color: '#a855f7', labelPos: [18.0, 92.2], points: [[25, 88], [23, 89], [21, 90], [20, 92], [21, 94], [23, 95], [25, 95]] }
     ]
