@@ -142,23 +142,23 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .map-card { padding: 6px; }
 .map-host { width: 100%; touch-action: manipulation; }
 .map-svg { display: block; width: 100%; height: auto; user-select: none; -webkit-user-select: none; }
-.map-floor { fill: var(--floor); stroke: var(--border); stroke-width: 0.04; }
+.map-floor { fill: var(--floor); stroke: var(--border); stroke-width: calc(0.04 * var(--s, 1)); }
 .map-grid circle { fill: var(--grid-dot); }
-.wall { fill: none; stroke: var(--wall); stroke-width: 0.26; stroke-linecap: round; stroke-linejoin: round; }
+.wall { fill: none; stroke: var(--wall); stroke-width: calc(0.26 * var(--s, 1)); stroke-linecap: round; stroke-linejoin: round; }
 circle.wall { fill: var(--wall); stroke: none; }
 .wall.selected { stroke: var(--accent); }
 circle.wall.selected { fill: var(--accent); }
 .map-labels text {
-  font-size: 0.48px; font-weight: 700; fill: var(--muted);
-  paint-order: stroke; stroke: var(--floor); stroke-width: 0.14px; stroke-linejoin: round;
+  font-size: calc(0.48px * var(--s, 1)); font-weight: 700; fill: var(--muted);
+  paint-order: stroke; stroke: var(--floor); stroke-width: calc(0.14px * var(--s, 1)); stroke-linejoin: round;
 }
-.map-outline { fill: var(--surface-2); stroke: var(--muted); stroke-width: 0.1; stroke-linejoin: round; opacity: 0.85; }
-.map-draft polygon { fill: none; stroke: var(--accent); stroke-width: 0.2; stroke-dasharray: 0.4 0.25; stroke-linejoin: round; }
-.map-draft polyline { fill: none; stroke: var(--accent); stroke-width: 0.2; stroke-dasharray: 0.4 0.25; stroke-linecap: round; }
+.map-outline { fill: var(--surface-2); stroke: var(--muted); stroke-width: calc(0.1 * var(--s, 1)); stroke-linejoin: round; opacity: 0.85; }
+.map-draft polygon { fill: none; stroke: var(--accent); stroke-width: calc(0.2 * var(--s, 1)); stroke-dasharray: calc(0.4 * var(--s, 1)) calc(0.25 * var(--s, 1)); stroke-linejoin: round; }
+.map-draft polyline { fill: none; stroke: var(--accent); stroke-width: calc(0.2 * var(--s, 1)); stroke-dasharray: calc(0.4 * var(--s, 1)) calc(0.25 * var(--s, 1)); stroke-linecap: round; }
 .map-draft circle { fill: var(--accent); }
-.pin-dot { stroke-width: 0.15; }
-.pin-tried .pin-dot { stroke-dasharray: 0.22 0.14; }
-.pin-halo { fill: none; stroke-width: 0.1; }
+.pin-dot { stroke-width: calc(0.15 * var(--s, 1)); }
+.pin-tried .pin-dot { stroke-dasharray: calc(0.22 * var(--s, 1)) calc(0.14 * var(--s, 1)); }
+.pin-halo { fill: none; stroke-width: calc(0.1 * var(--s, 1)); }
 .pin-preview { animation: pulse 1s ease-in-out infinite; }
 @keyframes pulse { 50% { opacity: 0.35; } }
 

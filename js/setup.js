@@ -1,7 +1,7 @@
 // setup.js — the Setup screen: draw and name walls, size the grid, define ordered colours.
 
 import * as store from './store.js';
-import { createMap } from './map.js';
+import { createMap, mapScale } from './map.js';
 import { snapToGrid, snapToWall, wallExtent } from './geometry.js';
 import { $, h, toast, attempt } from './dom.js';
 import { save, share } from './bridge.js';
@@ -92,7 +92,7 @@ function handleTap(p) {
     return;
   }
   if (mode === 'name') return;
-  const hit = snapToWall(p, store.activeWalls(), 0.8);
+  const hit = snapToWall(p, store.activeWalls(), 0.8 * mapScale(store.gym.cols));
   if (!hit) { if (mode === 'edit') reset(); return; }
   selectedId = hit.wallId;
   mode = 'edit';

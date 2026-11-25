@@ -6,6 +6,7 @@ import { polylineMidpoint } from './geometry.js';
 const NS = 'http://www.w3.org/2000/svg';
 const PAD = 0.6;
 export const PIN_R = 0.34;
+export const mapScale = (cols) => Math.max(1, cols / 13);
 
 function el(name, attrs = {}, parent = null) {
   const node = document.createElementNS(NS, name);
@@ -38,26 +39,30 @@ export function createMap(host, onTap) {
      */
     render(view) {
       const { cols, rows } = view;
-      svg.setAttribute('viewBox', `${-PAD} ${-PAD} ${cols + 2 * PAD} ${rows + 2 * PAD}`);
+      const s = mapScale(cols);
+      const pad = PAD * s;
+      svg.style.setProperty('--s', s);
+      svg.setAttribute('viewBox', `${-pad} ${-pad} ${cols + 2 * pad} ${rows + 2 * pad}`);
       svg.setAttribute('aria-label', view.label || 'Gym map');
       svg.replaceChildren();
 
-      el('rect', { class: 'map-floor', x: 0, y: 0, width: cols, height: rows, rx: 0.3 }, svg);
+      el('rect', { class: 'map-floor', x: 0, y: 0, width: cols, height: rows, rx: 0.3 * s }, svg);
 
       if (view.outline && view.outline.length >= 3) {
         el('polygon', { class: 'map-outline', points: view.outline.map((p) => p.join(',')).join(' ') }, svg);
       }
 
       const dots = el('g', { class: 'map-grid' }, svg);
-      for (let x = 0; x <= cols; x++) {
-        for (let y = 0; y <= rows; y++) el('circle', { cx: x, cy: y, r: 0.05 }, dots);
+      const step = s >= 1.8 ? 2 : 1;
+      for (let x = 0; x <= cols; x += step) {
+        for (let y = 0; y <= rows; y += step) el('circle', { cx: x, cy: y, r: 0.05 * s }, dots);
       }
 
       const walls = el('g', { class: 'map-walls' }, svg);
       for (const w of view.walls) {
         const cls = w.id === view.selectedWallId ? 'wall selected' : 'wall';
         const pts = w.points.map((p) => p.join(',')).join(' ');
-        if (w.points.length === 1) el('circle', { class: cls, cx: w.points[0][0], cy: w.points[0][1], r: 0.18 }, walls);
+        if (w.points.length === 1) el('circle', { class: cls, cx: w.points[0][0], cy: w.points[0][1], r: 0.18 * s }, walls);
         else el('polyline', { class: cls, points: pts }, walls);
       }
 
@@ -65,7 +70,7 @@ export function createMap(host, onTap) {
       for (const w of view.walls) {
         if (!w.name) continue;
         const m = polylineMidpoint(w.points);
-        const t = el('text', { x: m.x, y: m.y - 0.45, 'text-anchor': 'middle' }, labels);
+        const t = el('text', { x: m.x, y: m.y - 0.45 * s, 'text-anchor': 'middle' }, labels);
         t.textContent = w.name;
       }
 
@@ -73,12 +78,12 @@ export function createMap(host, onTap) {
         const d = el('g', { class: 'map-draft' }, svg);
         const pts = view.draft.map((p) => p.join(',')).join(' ');
         if (view.draft.length > 1) el(view.draftClosed ? 'polygon' : 'polyline', { points: pts }, d);
-        view.draft.forEach((p, i) => el('circle', { cx: p[0], cy: p[1], r: i === view.draft.length - 1 ? 0.24 : 0.16 }, d));
+        view.draft.forEach((p, i) => el('circle', { cx: p[0], cy: p[1], r: (i === view.draft.length - 1 ? 0.24 : 0.16) * s }, d));
       }
 
       const pins = el('g', { class: 'map-pins' }, svg);
-      for (const pin of view.pins) drawPin(pins, pin);
-      if (view.preview) drawPin(pins, { ...view.preview, result: 'preview' });
+      for (const pin of view.pins) drawPin(pins, pin, s);
+      if (view.preview) drawPin(pins, { ...view.preview, result: 'preview' }, s);
     }
   };
 }
@@ -88,16 +93,16 @@ export function createMap(host, onTap) {
  * Shape carries the result so colour is never the only cue: solid ring = sent,
  * extra outer halo = flash, dashed ring = tried.
  */
-function drawPin(parent, pin) {
+function drawPin(parent, pin, s = 1) {
   const g = el('g', { class: `pin pin-${pin.result}` }, parent);
   if (pin.result === 'flash') {
-    el('circle', { class: 'pin-halo', cx: pin.x, cy: pin.y, r: PIN_R + 0.17, stroke: pin.ring }, g);
+    el('circle', { class: 'pin-halo', cx: pin.x, cy: pin.y, r: (PIN_R + 0.17) * s, stroke: pin.ring }, g);
   }
   el('circle', {
     class: 'pin-dot',
     cx: pin.x,
     cy: pin.y,
-    r: PIN_R,
+    r: PIN_R * s,
     fill: pin.fill || 'var(--surface-solid)',
     stroke: pin.ring
   }, g);

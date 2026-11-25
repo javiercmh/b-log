@@ -1,7 +1,7 @@
 // climb.js — the Climb screen: day switcher, colour palette, map logging and the day summary.
 
 import * as store from './store.js';
-import { createMap, PIN_R } from './map.js';
+import { createMap, PIN_R, mapScale } from './map.js';
 import { snapToWall, nearestPoint, wallExtent } from './geometry.js';
 import { gradeCounts, localIso, addDays, parseIso } from './stats.js';
 import { $, h, toast, attempt, swatch } from './dom.js';
@@ -132,11 +132,12 @@ function renderSummary(daySends) {
 
 function handleTap(p) {
   if (sheet) return;
+  const s = mapScale(store.gym.cols);
   const daySends = store.sendsOn(day);
-  const pin = nearestPoint(p, [...daySends].reverse(), PIN_HIT);
+  const pin = nearestPoint(p, [...daySends].reverse(), PIN_HIT * s);
   if (pin) { openEdit(pin); return; }
 
-  const spot = snapToWall(p, store.wallsOn(day), SNAP_DIST);
+  const spot = snapToWall(p, store.wallsOn(day), SNAP_DIST * s);
   if (!spot) { toast('Tap closer to a wall.'); return; }
   const grade = store.selectedGrade();
   if (!grade) { toast('Add a colour in Setup first.'); return; }

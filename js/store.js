@@ -39,7 +39,7 @@ function defaultHolds() {
 export const DEFAULT_SETTINGS = { version: 1, selectedGradeId: null };
 
 export const MIN_GRID = 4;
-export const MAX_GRID = 40;
+export const MAX_GRID = 100;
 
 export let gym = structuredClone(DEFAULT_GYM);
 export let sends = [];

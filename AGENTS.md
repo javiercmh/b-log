@@ -49,7 +49,7 @@ over weeks and months.
     both maps and is never a wall: taps do not snap to it and boulders cannot be logged on it.
     `Remove outline` appears while redrawing. Saving or removing offers Undo. The outline is not
     versioned by date (only walls have history).
-  - **Grid size**: width and height in grid units (4–40). It cannot shrink past current walls or
+  - **Grid size**: width and height in grid units (4–100). It cannot shrink past current walls or
     the outline.
   - **Gym layout**: Upload / Save file / Share a `<gym>-b-log-layout.json` with the gym name, the
     grid, the outline and the current walls only (names and points; no ids, colours or climbs), so climbers at the same gym
@@ -62,7 +62,7 @@ over weeks and months.
   - **Built-in gyms**: a list under the layout buttons; **Load** works exactly like uploading that
     layout (same replacement rules and Undo). The layouts live in `js/gyms.js` (an ES module, so
     no fetch is needed); add a gym by appending its layout object there. Currently: Rocktown
-    (outline only, traced from a satellite view, west end at the top).
+    (26 × 98 with 2nd floor above the 1st floor outline, west end at the top).
   - **Difficulty colours**: ordered easiest → hardest, each with a name and a colour. Reorder
     with ↑ ↓.
   - **Hold colours**: starts with 12 common hold colours; rename, recolour, reorder, add or
@@ -154,7 +154,7 @@ never reused; names can change freely.
   "outline": [[0, 0], [12, 0], [12, 16], [0, 16]],
   "walls": [{ "name": "Slab", "points": [[1, 1], [7, 1]] }] }
 ```
-Validated on upload: grid 4–40, up to 200 walls (a file needs walls or an outline), 1–100 integer
+Validated on upload: grid 4–100, up to 200 walls (a file needs walls or an outline), 1–100 integer
 points per wall inside the grid, an optional name (trimmed, up to 60 characters), an optional outline of 3–100 such points, files up to 1 MiB.
 
 ### `data/settings.json`

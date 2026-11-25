@@ -119,7 +119,7 @@ test('a layout file round-trips and rejects broken files', () => {
   assert.deepEqual(parsed, { name: null, cols: 12, rows: 16, outline: null, walls: [{ name: 'Slab', points: [[0, 0], [4, 0]] }] });
   assert.throws(() => store.parseLayout('nope'), /not a B-log layout/);
   assert.throws(() => store.parseLayout(JSON.stringify({ cols: 12, rows: 16, walls: [] })), /no walls/);
-  assert.throws(() => store.parseLayout(JSON.stringify({ cols: 99, rows: 16, walls: [] })), /grid/);
+  assert.throws(() => store.parseLayout(JSON.stringify({ cols: 101, rows: 16, walls: [] })), /grid/);
   assert.throws(() => store.parseLayout(JSON.stringify({ cols: 4, rows: 4, walls: [{ name: 'X', points: [[0, 9]] }] })), /broken/);
   // A whole gym.json works too.
   assert.equal(store.parseLayout(files.get(store.FILES.gym)).walls.length, 1);
