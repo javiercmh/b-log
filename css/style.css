@@ -211,11 +211,13 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .grid-major { stroke: var(--grid-dot); stroke-width: calc(0.065 * var(--s, 1)); opacity: 0.35; }
 
 .zone { stroke-linejoin: round; fill: var(--muted); stroke: var(--muted); }
-.zone-mat { fill-opacity: 0.12; stroke: none; }
-.zone-walkway { fill: var(--text); fill-opacity: 0.03; stroke-width: calc(0.06 * var(--s, 1)); stroke-dasharray: calc(0.35 * var(--s, 1)) calc(0.2 * var(--s, 1)); }
-.zone-floor { fill-opacity: 0.06; stroke-width: calc(0.07 * var(--s, 1)); stroke-dasharray: calc(0.35 * var(--s, 1)) calc(0.22 * var(--s, 1)); }
-.zone-area { fill-opacity: 0.08; stroke-width: calc(0.06 * var(--s, 1)); stroke-dasharray: calc(0.3 * var(--s, 1)) calc(0.2 * var(--s, 1)); }
-.zone-label { font-size: calc(0.5px * var(--s, 1)); font-weight: 600; fill: var(--muted); opacity: 0.75; letter-spacing: calc(0.04px * var(--s, 1)); pointer-events: none; }
+/* Zones differ by tone and border only (no hue): mats darker solid, walking = plain floor,
+   areas = outlined boxes with a label, 2nd floor = the only dashed outline. */
+.zone-mat { fill-opacity: 0.32; stroke: none; }
+.zone-walkway { fill: none; stroke: none; }
+.zone-floor { fill: var(--text); fill-opacity: 0.06; stroke: var(--text); stroke-opacity: 0.55; stroke-width: calc(0.1 * var(--s, 1)); stroke-dasharray: calc(0.35 * var(--s, 1)) calc(0.22 * var(--s, 1)); }
+.zone-area { fill: var(--floor); fill-opacity: 1; stroke-width: calc(0.09 * var(--s, 1)); }
+.zone-label { font-size: calc(0.5px * var(--s, 1)); font-weight: 600; fill: var(--muted); letter-spacing: calc(0.04px * var(--s, 1)); pointer-events: none; }
 
 .wall { fill: none; stroke: var(--wall); stroke-width: calc(0.2 * var(--s, 1)); stroke-linecap: round; stroke-linejoin: round; }
 .wall-dot { fill: var(--wall); }
@@ -233,8 +235,11 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .map-legend { display: flex; flex-direction: column; gap: 10px; padding-top: 4px; }
 .zone-key { display: flex; flex-wrap: wrap; gap: 8px 14px; font-size: 0.78rem; color: var(--muted); }
 .zone-key-item { display: inline-flex; align-items: center; gap: 6px; }
-.zone-swatch { width: 13px; height: 13px; border-radius: 3px; display: inline-block; background: color-mix(in srgb, var(--muted) 18%, transparent); border: 1.5px dashed var(--muted); }
-.zone-swatch-mat { border: none; background: color-mix(in srgb, var(--muted) 28%, transparent); }
+.zone-swatch { width: 13px; height: 13px; border-radius: 3px; display: inline-block; }
+.zone-swatch-mat { background: color-mix(in srgb, var(--muted) 55%, transparent); }
+.zone-swatch-walkway { background: var(--surface-2); border: 1.5px solid var(--border); }
+.zone-swatch-area { background: var(--floor); border: 1.5px solid var(--muted); }
+.zone-swatch-floor { background: color-mix(in srgb, var(--text) 8%, transparent); border: 1.5px dashed var(--text); }
 .wall-legend { list-style: none; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 10px; }
 .wall-legend-item { display: flex; align-items: center; gap: 7px; min-width: 0; font-size: 0.82rem; }
 .wall-code-pill {

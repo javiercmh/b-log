@@ -166,7 +166,7 @@ export function pinIcon({ ring, fill, result }) {
 export function renderMapLegend(host, { walls = [], zones = [] }) {
   const parts = [];
   const kinds = new Set((zones || []).map((z) => z.kind));
-  const KEY = [['mat', 'Mats'], ['walkway', 'Walking'], ['floor', '2nd floor'], ['area', 'Areas']];
+  const KEY = [['mat', 'Mats'], ['walkway', 'Walking'], ['area', 'Areas'], ['floor', '2nd floor']];
   const items = KEY.filter(([k]) => kinds.has(k)).map(([k, label]) =>
     h('span', { class: 'zone-key-item' }, h('i', { class: `zone-swatch zone-swatch-${k}` }), label));
   if (items.length) parts.push(h('div', { class: 'zone-key' }, ...items));

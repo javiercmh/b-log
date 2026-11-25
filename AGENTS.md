@@ -37,7 +37,9 @@ over weeks and months.
     sent, extra outer halo = flash, dashed ring = tried. A light rim keeps pins readable.
   - The floor, zones and walls are drawn **neutral** (grey walls, outlined code pills): colour on
     the map only ever means a logged boulder, so a red pin never disappears on a red wall. Wall
-    `color` values in layout files are kept but not drawn.
+    `color` values in layout files are kept but not drawn. Zones differ by tone and border only:
+    mats darker solid, walking plain floor, areas outlined boxes with their label, 2nd floor the
+    only dashed outline (zone `color` values are not drawn either).
   - A pin is drawn snapped onto its wall's **current** shape (a reshaped wall in a new layout
     revision); the send's saved `x`/`y` never change.
   - A summary below the map lists, per colour in grade order, the counts of flash / sent / tried
