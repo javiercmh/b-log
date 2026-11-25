@@ -66,8 +66,8 @@ over weeks and months.
       `share.available` is false; Save falls back to a browser download in previews.
   - **All gyms → Hold colours** (the row shows the colours): starts with 12 common hold colours;
     rename, recolour, drag to reorder, add or remove. The order is the order of the swatches in
-    the sheet. (Hold colours are still stored in `gym.json`; move them to app-level data when
-    multiple gyms arrive.)
+    the sheet. Hold colours are an input method, the same at every gym, so they are stored in
+    `settings.json`, **never in a gym file or layout**; loading a gym never changes them.
   - **App → App settings**: Appearance System / Light / Dark (`settings.theme`).
   - A difficulty or hold colour used by logged boulders cannot be deleted; it can be renamed or
     recoloured.
@@ -146,12 +146,13 @@ Every mutation builds the next state, writes it, and publishes it only if the wr
   "walls": [{ "id": "w_…", "name": "Slab", "points": [[1, 1], [7, 1]],
                "addedOn": "2026-11-24", "removedOn": "2026-12-01" }],
   "grades": [{ "id": "g_red", "name": "Red", "color": "#ef4444" }],
-  "holds": [{ "id": "h_blue", "name": "Blue", "color": "#2563eb" }],
   "source": { "id": "rocktown", "revision": 1 }
 }
 ```
-`grades` order is the difficulty order, easiest first. `holds` are the hold colours; a file
-without `holds` (written before v0.2) loads the default list. Wall `addedOn`/`removedOn` are
+`grades` order is the difficulty order, easiest first. Hold colours are not part of the gym (see
+`settings.json`); a gym file written before v0.8 may still contain `holds`, which load moves to
+`settings.json` once (settings first, ids kept; if `settings.json` is damaged they stay in the
+gym file until it can be written). Wall `addedOn`/`removedOn` are
 optional local dates (see wall history). `outline` is optional (`null` or absent = none): a closed
 polygon of grid points. `name` is the optional gym name (`null` or absent = none). `source` is
 the built-in gym and revision the layout came from (`null` or absent = uploaded or older file). `color` is `#rrggbb`. IDs are stable and
@@ -178,9 +179,12 @@ points per wall inside the grid, an optional name (trimmed, up to 60 characters)
 
 ### `data/settings.json`
 ```json
-{ "version": 1, "selectedGradeId": "g_red", "theme": "system" }
+{ "version": 1, "selectedGradeId": "g_red", "theme": "system",
+  "holds": [{ "id": "h_blue", "name": "Blue", "color": "#2563eb" }] }
 ```
-`theme` is `system`, `light` or `dark` (anything else loads as `system`).
+`theme` is `system`, `light` or `dark` (anything else loads as `system`). `holds` are the
+app-wide hold colours in swatch order (absent = the 12 defaults); a send's `holdId` refers to them.
+An invalid `holds` list marks the file as damaged.
 
 The repository copies of these files are the empty seeds shipped to new installs. Never commit
 real climbing data.

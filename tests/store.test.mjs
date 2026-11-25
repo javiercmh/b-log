@@ -86,7 +86,7 @@ test('grades reorder and the selected colour persists', () => {
 });
 
 test('hold colour is optional, saved with the send, and guarded against deletion', () => {
-  assert.equal(store.gym.holds.length, 12);
+  assert.equal(store.colours('holds').length, 12);
   const w = store.addWall('Slab', [[0, 0], [4, 0]]);
   const a = store.addSend({ date: '2026-11-24', gradeId: 'g_red', holdId: 'h_blue', wallId: w.id, x: 1, y: 0, result: 'sent' });
   const b = store.addSend({ date: '2026-11-24', gradeId: 'g_red', wallId: w.id, x: 2, y: 0, result: 'tried' });
@@ -99,17 +99,44 @@ test('hold colour is optional, saved with the send, and guarded against deletion
   const c = store.addColour('holds', 'Neon', '#a3e635');
   store.updateColour('holds', c.id, { name: 'Lime' });
   assert.equal(store.hold(c.id).name, 'Lime');
+  // Hold colours are app-wide: saved in settings.json, never in the gym file.
+  assert.equal(JSON.parse(files.get(store.FILES.settings)).holds.at(-1).name, 'Lime');
+  assert.equal(JSON.parse(files.get(store.FILES.gym)).holds, undefined);
 });
 
-test('a gym file from before hold colours gets the default holds', () => {
+test('a gym file without hold colours loads with the default holds', () => {
   const old = { version: 1, cols: 8, rows: 8, walls: [], grades: [{ id: 'g_x', name: 'X', color: '#123456' }] };
   files.set(store.FILES.gym, JSON.stringify(old));
   files.set(store.FILES.sends, JSON.stringify([{ id: 's_1', date: '2026-11-20', gradeId: 'g_x', wallId: 'w', x: 0, y: 0, result: 'sent' }]));
   store.load();
   assert.equal(store.corrupt.size, 0);
   assert.equal(store.gym.cols, 8);
-  assert.equal(store.gym.holds.length, 12);
+  assert.equal(store.colours('holds').length, 12);
   assert.equal(store.sends.length, 1);
+});
+
+test('hold colours saved in an older gym file move to settings once, keeping their ids', () => {
+  const holds = [{ id: 'h_neon', name: 'Neon', color: '#a3e635' }, { id: 'h_red', name: 'Red', color: '#dc2626' }];
+  files.set(store.FILES.gym, JSON.stringify({ version: 1, cols: 8, rows: 8, walls: [], grades: [], holds }));
+  files.set(store.FILES.settings, JSON.stringify({ version: 1, selectedGradeId: null }));
+  store.load();
+  assert.deepEqual(store.colours('holds'), holds);
+  assert.equal(store.hold('h_neon').name, 'Neon');
+  assert.deepEqual(JSON.parse(files.get(store.FILES.settings)).holds, holds);
+  assert.equal(JSON.parse(files.get(store.FILES.gym)).holds, undefined);
+  // Loading a new gym layout never touches them.
+  store.importLayout(store.parseLayout(JSON.stringify({ cols: 8, rows: 8, name: 'Other', walls: [{ name: 'Slab', points: [[1, 1], [5, 1]] }] })));
+  assert.deepEqual(store.colours('holds'), holds);
+});
+
+test('hold colours stay in the gym file while a damaged settings file blocks the move', () => {
+  const holds = [{ id: 'h_neon', name: 'Neon', color: '#a3e635' }];
+  files.set(store.FILES.gym, JSON.stringify({ version: 1, cols: 8, rows: 8, walls: [], grades: [], holds }));
+  files.set(store.FILES.settings, '{broken');
+  store.load();
+  assert.equal(store.hold('h_neon').name, 'Neon');
+  store.setGymName('Kept');
+  assert.deepEqual(JSON.parse(files.get(store.FILES.gym)).holds, holds);
 });
 
 test('a layout file round-trips and rejects broken files', () => {
@@ -295,7 +322,7 @@ test('colours move to a position in one write', () => {
   store.load();
   assert.equal(store.gym.grades[3].id, 'g_yellow');
   store.moveColourTo('holds', 'h_brown', 0);
-  assert.equal(store.gym.holds[0].id, 'h_brown');
+  assert.equal(store.colours('holds')[0].id, 'h_brown');
 });
 
 test('the theme setting persists and rejects unknown values', () => {

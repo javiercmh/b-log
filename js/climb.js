@@ -207,7 +207,7 @@ function renderSheetColours() {
     renderSheetColours();
     if (sheet.mode === 'log') render();
   })));
-  $('sheet-holds').replaceChildren(...store.gym.holds.map((c) => namedSwatch(c, c.id === sheet.holdId, () => {
+  $('sheet-holds').replaceChildren(...store.colours('holds').map((c) => namedSwatch(c, c.id === sheet.holdId, () => {
     sheet.holdId = sheet.holdId === c.id ? null : c.id;
     renderSheetColours();
     if (sheet.mode === 'log') render();

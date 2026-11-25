@@ -1,4 +1,4 @@
-// store.js — persistence for the gym layout, grades, sends and settings.
+// store.js — persistence for the gym layout, grades, sends and settings (incl. hold colours).
 // Talks to bridge.js; never touches the DOM. Every mutation builds the next state, writes it,
 // and only then publishes it, so a failed write leaves both the file and memory unchanged.
 
@@ -22,11 +22,13 @@ export const DEFAULT_GYM = {
     { id: 'g_blue', name: 'Blue', color: '#3b82f6' },
     { id: 'g_red', name: 'Red', color: '#ef4444' },
     { id: 'g_black', name: 'Black', color: '#1f2937' }
-  ],
-  holds: defaultHolds()
+  ]
 };
 
-/** Common hold colours; the user can edit the list in Setup. */
+/**
+ * Common hold colours; the user can edit the list in Setup. Hold colours are an input method,
+ * the same at every gym, so they live in settings.json, never in a gym file.
+ */
 function defaultHolds() {
   return [
     ['red', 'Red', '#dc2626'], ['orange', 'Orange', '#f97316'], ['yellow', 'Yellow', '#facc15'],
@@ -37,14 +39,14 @@ function defaultHolds() {
 }
 
 export const THEMES = ['system', 'light', 'dark'];
-export const DEFAULT_SETTINGS = { version: 1, selectedGradeId: null, theme: 'system' };
+export const DEFAULT_SETTINGS = { version: 1, selectedGradeId: null, theme: 'system', holds: defaultHolds() };
 
 export const MIN_GRID = 4;
 export const MAX_GRID = 100;
 
 export let gym = structuredClone(DEFAULT_GYM);
 export let sends = [];
-export let settings = { ...DEFAULT_SETTINGS };
+export let settings = structuredClone(DEFAULT_SETTINGS);
 
 /** Files that exist but could not be parsed. They are never overwritten. */
 export const corrupt = new Set();
@@ -66,6 +68,8 @@ const isNum = (n) => typeof n === 'number' && Number.isFinite(n);
 const isColor = (c) => typeof c === 'string' && /^#[0-9a-f]{6}$/i.test(c);
 const isPoint = (p) => Array.isArray(p) && p.length === 2 && isNum(p[0]) && isNum(p[1]);
 const ZONE_KINDS = new Set(['mat', 'walkway', 'area', 'floor']);
+const colourOk = (c) => c && typeof c.id === 'string' && typeof c.name === 'string' && isColor(c.color);
+const colourListOk = (list) => Array.isArray(list) && list.every(colourOk);
 
 function validZone(z) {
   return z && typeof z === 'object' && ZONE_KINDS.has(z.kind)
@@ -85,8 +89,8 @@ export function validGym(g) {
     && (w.code === undefined || w.code === null || typeof w.code === 'string')
     && (w.color === undefined || w.color === null || isColor(w.color))
     && (w.labelPos === undefined || w.labelPos === null || isPoint(w.labelPos)));
-  const colourOk = (c) => typeof c.id === 'string' && typeof c.name === 'string' && isColor(c.color);
-  const holdsOk = g.holds === undefined || (Array.isArray(g.holds) && g.holds.every(colourOk));
+  // `holds` only appears in gym files written before hold colours moved to settings.json.
+  const holdsOk = g.holds === undefined || colourListOk(g.holds);
   const outlineOk = g.outline === undefined || g.outline === null || (Array.isArray(g.outline)
     && g.outline.every(isPoint));
   const zonesOk = g.zones === undefined || g.zones === null || (Array.isArray(g.zones) && g.zones.every(validZone));
@@ -112,9 +116,13 @@ export function load() {
   corrupt.clear();
 
   const g = readJson(FILES.gym);
+  let legacyHolds = null;
   if (g.missing) gym = structuredClone(DEFAULT_GYM);
-  else if (g.value && validGym(g.value)) gym = { holds: defaultHolds(), ...g.value };
-  else corrupt.add(FILES.gym);
+  else if (g.value && validGym(g.value)) {
+    const { holds, ...rest } = g.value;
+    gym = rest;
+    legacyHolds = holds || null;
+  } else corrupt.add(FILES.gym);
 
   const s = readJson(FILES.sends);
   if (s.missing) sends = [];
@@ -122,10 +130,29 @@ export function load() {
   else corrupt.add(FILES.sends);
 
   const st = readJson(FILES.settings);
-  if (st.missing) settings = { ...DEFAULT_SETTINGS };
-  else if (st.value && typeof st.value === 'object') settings = { ...DEFAULT_SETTINGS, ...st.value };
-  else corrupt.add(FILES.settings);
+  let savedHolds = false;
+  if (st.missing) settings = structuredClone(DEFAULT_SETTINGS);
+  else if (st.value && typeof st.value === 'object' && (st.value.holds === undefined || colourListOk(st.value.holds))) {
+    settings = { ...structuredClone(DEFAULT_SETTINGS), ...st.value };
+    savedHolds = st.value.holds !== undefined;
+  } else corrupt.add(FILES.settings);
   if (!THEMES.includes(settings.theme)) settings = { ...settings, theme: 'system' };
+
+  // Before v0.8 hold colours lived in gym.json. Move them to settings.json once (settings first,
+  // so a failed write never loses them), keeping their ids so logged boulders still match.
+  if (legacyHolds && !savedHolds) {
+    settings = { ...settings, holds: legacyHolds };
+    let moved = false;
+    try {
+      write(FILES.settings, settings);
+      moved = true;
+      write(FILES.gym, gym);
+    } catch (err) {
+      console.error('[store] could not move hold colours to settings.json:', err);
+      // Until settings.json can take them, keep them in gym.json so later gym writes don't drop them.
+      if (!moved) gym = { ...gym, holds: legacyHolds };
+    }
+  }
 }
 
 function write(path, value) {
@@ -138,6 +165,7 @@ function write(path, value) {
 }
 
 function commitGym(next) { write(FILES.gym, next); gym = next; }
+function commitSettings(next) { write(FILES.settings, next); settings = next; }
 function commitSends(next) { write(FILES.sends, next); sends = next; }
 
 export function uid(prefix) {
@@ -147,7 +175,7 @@ export function uid(prefix) {
 // --- Lookups ---
 
 export function grade(id) { return gym.grades.find((g) => g.id === id) || null; }
-export function hold(id) { return (id && gym.holds.find((h) => h.id === id)) || null; }
+export function hold(id) { return (id && settings.holds.find((h) => h.id === id)) || null; }
 export function wall(id) { return gym.walls.find((w) => w.id === id) || null; }
 export function sendsOn(date) { return sends.filter((s) => s.date === date); }
 
@@ -158,17 +186,13 @@ export function selectedGrade() {
 // --- Settings ---
 
 export function selectGrade(id) {
-  const next = { ...settings, selectedGradeId: id };
-  write(FILES.settings, next);
-  settings = next;
+  commitSettings({ ...settings, selectedGradeId: id });
 }
 
 /** 'system' follows the phone; 'light' and 'dark' override it. */
 export function setTheme(theme) {
   if (!THEMES.includes(theme)) throw new Error('Unknown theme.');
-  const next = { ...settings, theme };
-  write(FILES.settings, next);
-  settings = next;
+  commitSettings({ ...settings, theme });
 }
 
 // --- Sends ---
@@ -522,40 +546,51 @@ export function resizeGrid(cols, rows) {
   commitGym({ ...gym, cols, rows });
 }
 
-// --- Colour lists: 'grades' (ordered easiest → hardest) and 'holds' ---
+// --- Colour lists: 'grades' (the gym's, ordered easiest → hardest, in gym.json) and
+// 'holds' (app-wide, in settings.json) ---
 
 const SEND_KEY = { grades: 'gradeId', holds: 'holdId' };
 const ID_PREFIX = { grades: 'g', holds: 'h' };
 
+/** The current list of a kind: the gym's difficulty colours or the app's hold colours. */
+export function colours(kind) {
+  return kind === 'holds' ? settings.holds : gym.grades;
+}
+
+function commitColours(kind, list) {
+  if (kind === 'holds') commitSettings({ ...settings, holds: list });
+  else commitGym({ ...gym, grades: list });
+}
+
 export function addColour(kind, name, color) {
   const c = { id: uid(ID_PREFIX[kind]), name, color };
-  commitGym({ ...gym, [kind]: [...gym[kind], c] });
+  commitColours(kind, [...colours(kind), c]);
   return c;
 }
 
 export function updateColour(kind, id, patch) {
-  commitGym({ ...gym, [kind]: gym[kind].map((c) => (c.id === id ? { ...c, ...patch } : c)) });
+  commitColours(kind, colours(kind).map((c) => (c.id === id ? { ...c, ...patch } : c)));
 }
 
 export function moveColour(kind, id, delta) {
-  const list = [...gym[kind]];
+  const list = [...colours(kind)];
   const i = list.findIndex((c) => c.id === id);
   const j = i + delta;
   if (i === -1 || j < 0 || j >= list.length) return;
   [list[i], list[j]] = [list[j], list[i]];
-  commitGym({ ...gym, [kind]: list });
+  commitColours(kind, list);
 }
 
 /** Moves a colour to `index` in one write (drag to reorder). */
 export function moveColourTo(kind, id, index) {
-  const list = [...gym[kind]];
+  const list = [...colours(kind)];
   const i = list.findIndex((c) => c.id === id);
   if (i === -1) return;
   const j = Math.max(0, Math.min(list.length - 1, index));
   if (i === j) return;
   const [c] = list.splice(i, 1);
   list.splice(j, 0, c);
-  commitGym({ ...gym, [kind]: list });
+  commitColours(kind, list);
 }
 
 export function colourSendCount(kind, id) {
@@ -565,5 +600,5 @@ export function colourSendCount(kind, id) {
 /** A colour used by logged boulders cannot be deleted; it can be renamed or recoloured. */
 export function removeColour(kind, id) {
   if (colourSendCount(kind, id) > 0) throw new Error('This colour is used by logged boulders, so it cannot be deleted.');
-  commitGym({ ...gym, [kind]: gym[kind].filter((c) => c.id !== id) });
+  commitColours(kind, colours(kind).filter((c) => c.id !== id));
 }

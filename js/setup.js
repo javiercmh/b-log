@@ -188,8 +188,8 @@ export function render() {
   $('row-grades').replaceChildren(h('span', { class: 'strip-scale' },
     h('span', { text: 'Easy' }), strip(store.gym.grades), h('span', { text: 'Hard' })));
   $('row-grades').setAttribute('aria-label', `Easiest to hardest: ${store.gym.grades.map((g) => g.name).join(', ')}`);
-  $('row-holds').replaceChildren(strip(store.gym.holds));
-  $('row-holds').setAttribute('aria-label', store.gym.holds.map((c) => c.name).join(', '));
+  $('row-holds').replaceChildren(strip(store.colours('holds')));
+  $('row-holds').setAttribute('aria-label', store.colours('holds').map((c) => c.name).join(', '));
   $('row-app').textContent = `Appearance: ${THEME_LABEL[store.settings.theme]}`;
   renderUpdate();
 
@@ -242,14 +242,14 @@ const LISTS = {
 
 /** Moves a colour shown at display position `from` to display position `to`. */
 function moveShown(kind, id, to) {
-  const n = store.gym[kind].length;
+  const n = store.colours(kind).length;
   const index = LISTS[kind].reverse ? n - 1 - to : to;
   return attempt(() => store.moveColourTo(kind, id, index));
 }
 
 function renderColours(kind) {
   const { list, reverse } = LISTS[kind];
-  const items = reverse ? [...store.gym[kind]].reverse() : store.gym[kind];
+  const items = reverse ? [...store.colours(kind)].reverse() : store.colours(kind);
   $(list).replaceChildren(...items.map((c, i) => {
     const used = store.colourSendCount(kind, c.id);
     const handle = h('button', {
